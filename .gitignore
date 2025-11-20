@@ -1,0 +1,19 @@
+# Node modules
+node_modules
+client/node_modules
+server/node_modules
+
+# Build output
+dist
+client/dist
+server/dist
+
+# Env files
+.env
+.env.local
+.env.development
+.env.production
+
+# OS junk
+.DS_Store
+Thumbs.db
