@@ -1,61 +1,33 @@
 // server/dataStore.js
-// In-memory + file-backed "database" for guests, visits, and visit department check-ins.
-
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Resolve path to data.json next to this file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Where data is stored on disk
 const DATA_FILE = path.join(__dirname, "data.json");
 
-// ---------------------------
-// In-memory state
-// ---------------------------
-let guests = []; // { id, licenseState, licenseNumber, firstName, lastName }
-let visits = []; // { id, guestId, visitDate, createdAt, firstDepartment, campus }
-let visitDepartments = []; // { id, visitId, department, checkedInAt }
+let guests = [];
+let visits = [];
 
-let guestIdCounter = 1;
-let visitIdCounter = 1;
-let visitDeptIdCounter = 1;
-
-// ---------------------------
-// Persistence helpers
-// ---------------------------
+// -------- Persistence helpers --------
 function loadData() {
   try {
-    if (!fs.existsSync(DATA_FILE)) {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, "utf8");
+      const parsed = JSON.parse(raw);
+      guests = parsed.guests || [];
+      visits = parsed.visits || [];
+      console.log("[dataStore] Loaded data from", DATA_FILE);
+    } else {
       console.log("[dataStore] No existing data file, starting fresh.");
-      return;
     }
-    const raw = fs.readFileSync(DATA_FILE, "utf8");
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-
-    guests = parsed.guests || [];
-    visits = parsed.visits || [];
-    visitDepartments = parsed.visitDepartments || [];
-
-    // Restore counters or compute from existing data
-    guestIdCounter =
-      parsed.guestIdCounter ||
-      (guests.length ? Math.max(...guests.map((g) => g.id)) + 1 : 1);
-    visitIdCounter =
-      parsed.visitIdCounter ||
-      (visits.length ? Math.max(...visits.map((v) => v.id)) + 1 : 1);
-    visitDeptIdCounter =
-      parsed.visitDeptIdCounter ||
-      (visitDepartments.length
-        ? Math.max(...visitDepartments.map((vd) => vd.id)) + 1
-        : 1);
-
-    console.log(
-      `[dataStore] Loaded ${guests.length} guests, ${visits.length} visits.`
-    );
   } catch (err) {
-    console.error("[dataStore] Error loading data:", err);
+    console.error("[dataStore] Failed to read data file:", err);
+    guests = [];
+    visits = [];
   }
 }
 
@@ -63,262 +35,284 @@ function saveData() {
   const payload = {
     guests,
     visits,
-    visitDepartments,
-    guestIdCounter,
-    visitIdCounter,
-    visitDeptIdCounter,
   };
-
-  fs.writeFile(DATA_FILE, JSON.stringify(payload, null, 2), (err) => {
-    if (err) {
-      console.error("[dataStore] Error saving data:", err);
-    }
-  });
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), "utf8");
+  } catch (err) {
+    console.error("[dataStore] Failed to write data file:", err);
+  }
 }
 
-// Load existing data (if any) at startup
+// Load data on module import
 loadData();
 
-// ---------------------------
-// Utility helpers
-// ---------------------------
-function getTodayDateString() {
-  const now = new Date();
-  return now.toISOString().slice(0, 10); // "YYYY-MM-DD"
+// -------- Utility --------
+export function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-function getYearFromDate(dateStr) {
-  return Number(dateStr.slice(0, 4));
+function normalizeName(name) {
+  return (name || "").trim();
 }
 
-// ---------------------------
-// Core guest functions
-// ---------------------------
-function findOrCreateGuest({ licenseState, licenseNumber, firstName, lastName }) {
-  let guest =
-    guests.find(
-      (g) =>
-        g.licenseState === licenseState && g.licenseNumber === licenseNumber
-    ) || null;
-
-  if (!guest) {
-    guest = {
-      id: guestIdCounter++,
-      licenseState,
-      licenseNumber,
-      firstName: firstName || null,
-      lastName: lastName || null,
-    };
-    guests.push(guest);
-    saveData();
-  } else {
-    // If we now have a name and guest didn't, update it
-    let changed = false;
-    if (firstName && !guest.firstName) {
-      guest.firstName = firstName;
-      changed = true;
-    }
-    if (lastName && !guest.lastName) {
-      guest.lastName = lastName;
-      changed = true;
-    }
-    if (changed) saveData();
-  }
-
-  return guest;
+function normalizeNameLower(name) {
+  return normalizeName(name).toLowerCase();
 }
 
-function findGuestByLicense(licenseState, licenseNumber) {
+// -------- Guest helpers --------
+
+export function getAllGuests() {
+  return guests;
+}
+
+export function getDeletedGuests() {
+  return guests.filter((g) => g.isDeleted);
+}
+
+export function findGuestById(id) {
+  return guests.find((g) => g.id === id);
+}
+
+export function findOrCreateGuestByName({ firstName, lastName }) {
+  const fnNorm = normalizeName(firstName);
+  const lnNorm = normalizeName(lastName);
+
+  // Try to find an existing ACTIVE guest with same name (case-insensitive)
+  const existing = guests.find(
+    (g) =>
+      !g.isDeleted &&
+      normalizeNameLower(g.firstName) === fnNorm.toLowerCase() &&
+      normalizeNameLower(g.lastName) === lnNorm.toLowerCase()
+  );
+
+  if (existing) return existing;
+
+  const newGuest = {
+    id: guests.length ? Math.max(...guests.map((g) => g.id)) + 1 : 1,
+    firstName: fnNorm,
+    lastName: lnNorm,
+    licenseState: null,
+    licenseNumber: null,
+    isDeleted: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  guests.push(newGuest);
+  saveData();
+  return newGuest;
+}
+
+export function findGuestByExactName(firstName, lastName) {
+  const fn = normalizeNameLower(firstName);
+  const ln = normalizeNameLower(lastName);
+
   return (
     guests.find(
       (g) =>
-        g.licenseState === licenseState && g.licenseNumber === licenseNumber
+        !g.isDeleted &&
+        normalizeNameLower(g.firstName) === fn &&
+        normalizeNameLower(g.lastName) === ln
     ) || null
   );
 }
 
-function getAllGuests() {
-  return guests;
+// Simple similarity check for “similar name”
+function namesAreSimilar(firstA, lastA, firstB, lastB) {
+  const fa = normalizeNameLower(firstA);
+  const fb = normalizeNameLower(firstB);
+  const la = normalizeNameLower(lastA);
+  const lb = normalizeNameLower(lastB);
+
+  if (!fa || !fb || !la || !lb) return false;
+
+  // Last name must match exactly
+  if (la !== lb) return false;
+
+  // First names:
+  // - exact match OR
+  // - one starts with the other OR
+  // - first letter matches and length difference <= 3
+  if (fa === fb) return true;
+  if (fa.startsWith(fb) || fb.startsWith(fa)) return true;
+  if (fa[0] === fb[0] && Math.abs(fa.length - fb.length) <= 3) return true;
+
+  return false;
 }
 
-function updateGuest(guestId, { licenseState, licenseNumber, firstName, lastName }) {
-  const guest = guests.find((g) => g.id === guestId);
+export function findSimilarGuestsByName(firstName, lastName) {
+  return guests.filter(
+    (g) =>
+      !g.isDeleted && namesAreSimilar(firstName, lastName, g.firstName, g.lastName)
+  );
+}
+
+export function updateGuest(id, fields) {
+  const guest = findGuestById(id);
   if (!guest) return null;
 
-  if (licenseState !== undefined && licenseState !== null) {
-    guest.licenseState = licenseState;
+  if (fields.firstName !== undefined) {
+    guest.firstName = normalizeName(fields.firstName);
   }
-  if (licenseNumber !== undefined && licenseNumber !== null) {
-    guest.licenseNumber = licenseNumber;
+  if (fields.lastName !== undefined) {
+    guest.lastName = normalizeName(fields.lastName);
   }
-  if (firstName !== undefined) {
-    guest.firstName = firstName || null;
+  if (fields.licenseState !== undefined) {
+    guest.licenseState = fields.licenseState || null;
   }
-  if (lastName !== undefined) {
-    guest.lastName = lastName || null;
+  if (fields.licenseNumber !== undefined) {
+    guest.licenseNumber = fields.licenseNumber || null;
+  }
+  if (fields.isDeleted !== undefined) {
+    guest.isDeleted = !!fields.isDeleted;
   }
 
+  guest.updatedAt = new Date().toISOString();
   saveData();
   return guest;
 }
 
-// ---------------------------
-// Visit helper functions
-// ---------------------------
-function getVisitForGuestOnDate(guestId, dateStr) {
-  return visits.find(
-    (v) => v.guestId === guestId && v.visitDate === dateStr
-  );
+export function softDeleteGuest(id) {
+  const guest = findGuestById(id);
+  if (!guest) return null;
+  guest.isDeleted = true;
+  guest.updatedAt = new Date().toISOString();
+  saveData();
+  return guest;
 }
 
-function getVisitsForGuestInYear(guestId, year) {
-  return visits.filter(
-    (v) =>
-      v.guestId === guestId && getYearFromDate(v.visitDate) === year
-  );
+export function restoreGuest(id) {
+  const guest = findGuestById(id);
+  if (!guest) return null;
+  guest.isDeleted = false;
+  guest.updatedAt = new Date().toISOString();
+  saveData();
+  return guest;
 }
 
-function getVisitsForGuestInMonth(guestId, year, month) {
-  const monthStr = String(month).padStart(2, "0");
-  return visits.filter(
-    (v) =>
-      v.guestId === guestId &&
-      v.visitDate.startsWith(`${year}-${monthStr}`)
-  );
-}
+// -------- Visit helpers --------
 
-function getVisitsByDate(dateStr) {
-  return visits.filter((v) => v.visitDate === dateStr);
-}
+export function createVisit({ guestId, department, campus, visitDate }) {
+  const dateStr = visitDate || getTodayDateString(); // default to today
+  const nowIso = new Date().toISOString();
 
-function getGuestById(id) {
-  return guests.find((g) => g.id === id) || null;
-}
-
-// ---------------------------
-// Visit creation / modification
-// ---------------------------
-function createVisit({ guestId, department, campus }) {
-  const today = getTodayDateString();
-  const createdAt = new Date().toISOString();
-
-  const visit = {
-    id: visitIdCounter++,
+  const newVisit = {
+    id: visits.length ? Math.max(...visits.map((v) => v.id)) + 1 : 1,
     guestId,
-    visitDate: today,
-    createdAt,
+    visitDate: dateStr,
+    createdAt: nowIso,
     firstDepartment: department,
     campus,
+    departments: [
+      {
+        department,
+        campus,
+        timestamp: nowIso,
+      },
+    ],
   };
-  visits.push(visit);
 
-  const deptEntry = {
-    id: visitDeptIdCounter++,
-    visitId: visit.id,
-    department,
-    checkedInAt: createdAt,
-  };
-  visitDepartments.push(deptEntry);
-
+  visits.push(newVisit);
   saveData();
-  return { visit, deptEntry };
+
+  return { visit: newVisit };
 }
 
-function addDepartmentToVisit(visitId, department) {
-  const createdAt = new Date().toISOString();
-  const existing = visitDepartments.find(
-    (vd) => vd.visitId === visitId && vd.department === department
-  );
-  if (existing) return existing;
+export function addDepartmentToVisit(visitId, department, campus) {
+  const visit = visits.find((v) => v.id === visitId);
+  if (!visit) return null;
 
-  const deptEntry = {
-    id: visitDeptIdCounter++,
-    visitId,
+  const entry = {
     department,
-    checkedInAt: createdAt,
+    campus: campus || visit.campus,
+    timestamp: new Date().toISOString(),
   };
-  visitDepartments.push(deptEntry);
+  visit.departments = visit.departments || [];
+  visit.departments.push(entry);
   saveData();
-  return deptEntry;
+  return entry;
 }
 
-function getDepartmentsForVisit(visitId) {
-  return visitDepartments.filter((vd) => vd.visitId === visitId);
-}
-
-function deleteVisitById(visitId) {
+export function deleteVisitById(visitId) {
   const index = visits.findIndex((v) => v.id === visitId);
   if (index === -1) return false;
-
   visits.splice(index, 1);
-
-  for (let i = visitDepartments.length - 1; i >= 0; i--) {
-    if (visitDepartments[i].visitId === visitId) {
-      visitDepartments.splice(i, 1);
-    }
-  }
-
   saveData();
   return true;
 }
 
-// ---------------------------
-// Search & summary
-// ---------------------------
-function searchGuests(query) {
-  const q = query.toLowerCase();
-  return guests.filter((g) => {
-    const fullName = `${g.firstName || ""} ${g.lastName || ""}`.toLowerCase();
-    return (
-      fullName.includes(q) ||
-      g.licenseNumber.toLowerCase().includes(q)
-    );
+export function getVisitForGuestOnDate(guestId, dateStr) {
+  return (
+    visits.find(
+      (v) => v.guestId === guestId && v.visitDate === dateStr
+    ) || null
+  );
+}
+
+export function getVisitsForGuestInYear(guestId, year) {
+  return visits.filter((v) => {
+    if (v.guestId !== guestId) return false;
+    if (!v.visitDate) return false;
+    const visitYear = Number(v.visitDate.slice(0, 4));
+    return visitYear === year;
   });
 }
 
-function getGuestVisitsSummary(guestId) {
-  const currentYear = new Date().getFullYear();
-  const yearVisits = getVisitsForGuestInYear(guestId, currentYear);
+export function getVisitsForGuestInMonth(guestId, year, month) {
+  // month = 1-12
+  return visits.filter((v) => {
+    if (v.guestId !== guestId) return false;
+    if (!v.visitDate || v.visitDate.length < 7) return false;
+    const visitYear = Number(v.visitDate.slice(0, 4));
+    const visitMonth = Number(v.visitDate.slice(5, 7));
+    return visitYear === year && visitMonth === month;
+  });
+}
 
+export function getGuestVisitsSummary(guestId) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  const yearVisits = getVisitsForGuestInYear(guestId, currentYear);
   const julyVisits = getVisitsForGuestInMonth(guestId, currentYear, 7);
   const augustVisits = getVisitsForGuestInMonth(guestId, currentYear, 8);
 
-  const detailedVisits = yearVisits.map((v) => ({
-    id: v.id,
-    date: v.visitDate,
-    createdAt: v.createdAt,
-    firstDepartment: v.firstDepartment,
-    campus: v.campus,
-    departments: getDepartmentsForVisit(v.id).map((vd) => ({
-      department: vd.department,
-      checkedInAt: vd.checkedInAt,
-    })),
-  }));
+  const visitSummaries = yearVisits
+    .slice()
+    .sort((a, b) => (a.visitDate < b.visitDate ? -1 : 1))
+    .map((v) => ({
+      id: v.id,
+      date: v.visitDate,
+      campus: v.campus,
+      firstDepartment: v.firstDepartment,
+      departments: v.departments || [],
+    }));
 
   return {
     totalYearVisits: yearVisits.length,
     julyVisits,
     augustVisits,
-    visits: detailedVisits,
+    visits: visitSummaries,
   };
 }
 
-export {
-  findOrCreateGuest,
-  findGuestByLicense,
-  updateGuest,
-  deleteVisitById,
-  getTodayDateString,
-  getVisitForGuestOnDate,
-  getVisitsForGuestInYear,
-  getVisitsForGuestInMonth,
-  createVisit,
-  addDepartmentToVisit,
-  getDepartmentsForVisit,
-  searchGuests,
-  getGuestVisitsSummary,
-  getAllGuests,
-  // extra helpers if we want them later
-  getVisitsByDate,
-  getGuestById,
-};
+// -------- Simple search (for lookup) --------
+export function searchGuests(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  return guests
+    .filter((g) => !g.isDeleted)
+    .filter((g) => {
+      const fullName =
+        `${normalizeNameLower(g.firstName)} ${normalizeNameLower(
+          g.lastName
+        )}`.trim();
+      return (
+        normalizeNameLower(g.firstName).includes(q) ||
+        normalizeNameLower(g.lastName).includes(q) ||
+        fullName.includes(q)
+      );
+    })
+    .slice(0, 50); // limit
+}

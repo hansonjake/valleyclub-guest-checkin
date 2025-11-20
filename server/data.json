@@ -6,11 +6,291 @@
       "licenseNumber": "12345",
       "firstName": "Jake",
       "lastName": "Hanson"
+    },
+    {
+      "id": 2,
+      "firstName": "Preston",
+      "lastName": "Hammond",
+      "licenseState": null,
+      "licenseNumber": null
+    },
+    {
+      "id": 3,
+      "firstName": "Jacob",
+      "lastName": "Hanson",
+      "licenseState": null,
+      "licenseNumber": null,
+      "isDeleted": true,
+      "updatedAt": "2025-11-20T21:11:04.224Z"
+    },
+    {
+      "id": 4,
+      "firstName": "Fred",
+      "lastName": "Hartzman",
+      "licenseState": null,
+      "licenseNumber": null,
+      "updatedAt": "2025-11-20T21:52:42.991Z"
+    },
+    {
+      "id": 5,
+      "firstName": "jaker",
+      "lastName": "hanson",
+      "licenseState": null,
+      "licenseNumber": null,
+      "isDeleted": true,
+      "updatedAt": "2025-11-20T21:10:41.844Z"
+    },
+    {
+      "id": 6,
+      "firstName": "Dick",
+      "lastName": "Davis",
+      "licenseState": null,
+      "licenseNumber": null
+    },
+    {
+      "id": 7,
+      "firstName": "Richard",
+      "lastName": "Davis",
+      "licenseState": null,
+      "licenseNumber": null
+    },
+    {
+      "id": 8,
+      "firstName": "fredrick",
+      "lastName": "hartzman",
+      "licenseState": null,
+      "licenseNumber": null,
+      "isDeleted": true,
+      "updatedAt": "2025-11-20T21:49:53.798Z"
+    },
+    {
+      "id": 9,
+      "firstName": "Jacob",
+      "lastName": "Howse",
+      "licenseState": null,
+      "licenseNumber": null,
+      "isDeleted": false,
+      "createdAt": "2025-11-20T21:55:02.205Z",
+      "updatedAt": "2025-11-20T21:55:02.205Z"
+    },
+    {
+      "id": 10,
+      "firstName": "Preston",
+      "lastName": "Hammon",
+      "licenseState": null,
+      "licenseNumber": null,
+      "isDeleted": false,
+      "createdAt": "2025-11-20T21:59:27.524Z",
+      "updatedAt": "2025-11-20T21:59:27.524Z"
+    },
+    {
+      "id": 11,
+      "firstName": "Fredrick",
+      "lastName": "Hartzman",
+      "licenseState": null,
+      "licenseNumber": null,
+      "isDeleted": true,
+      "createdAt": "2025-11-20T22:00:38.870Z",
+      "updatedAt": "2025-11-20T22:00:52.670Z"
     }
   ],
-  "visits": [],
-  "visitDepartments": [],
-  "guestIdCounter": 2,
-  "visitIdCounter": 2,
-  "visitDeptIdCounter": 3
+  "visits": [
+    {
+      "id": 2,
+      "guestId": 2,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T20:03:59.336Z",
+      "firstDepartment": "Simulator Round",
+      "campus": "Fitness Center",
+      "departments": [
+        {
+          "department": "Simulator Round",
+          "timestamp": "2025-11-20T20:03:59.336Z"
+        },
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:59:47.718Z"
+        },
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:59:57.347Z"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "guestId": 3,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T20:04:06.033Z",
+      "firstDepartment": "Simulator Round",
+      "campus": "Fitness Center",
+      "departments": [
+        {
+          "department": "Simulator Round",
+          "timestamp": "2025-11-20T20:04:06.033Z"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "guestId": 4,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T20:07:05.375Z",
+      "firstDepartment": "Simulator Round",
+      "campus": "Fitness Center",
+      "departments": [
+        {
+          "department": "Simulator Round",
+          "timestamp": "2025-11-20T20:07:05.375Z"
+        },
+        {
+          "department": "Simulator Round",
+          "timestamp": "2025-11-20T20:07:16.089Z"
+        },
+        {
+          "department": "Golf Round",
+          "timestamp": "2025-11-20T20:16:17.833Z"
+        },
+        {
+          "department": "Tennis Entry",
+          "campus": "Fitness Center",
+          "timestamp": "2025-11-20T21:37:15.207Z"
+        },
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:49:32.817Z"
+        },
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:50:14.575Z"
+        },
+        {
+          "department": "Simulator Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T22:16:51.306Z"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "guestId": 6,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T20:16:46.380Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "timestamp": "2025-11-20T20:16:46.380Z"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "guestId": 7,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T20:16:52.695Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "timestamp": "2025-11-20T20:16:52.695Z"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "guestId": 8,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T20:32:27.560Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "timestamp": "2025-11-20T20:32:27.560Z"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "guestId": 1,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T21:19:57.525Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:19:57.525Z"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "guestId": 4,
+      "visitDate": "2025-11-19",
+      "createdAt": "2025-11-20T21:52:19.277Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:52:19.277Z"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "guestId": 10,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T21:59:27.525Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T21:59:27.525Z"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "guestId": 11,
+      "visitDate": "2025-11-20",
+      "createdAt": "2025-11-20T22:00:38.870Z",
+      "firstDepartment": "Golf Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Golf Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T22:00:38.870Z"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "guestId": 9,
+      "visitDate": "2023-06-21",
+      "createdAt": "2025-11-20T22:26:30.297Z",
+      "firstDepartment": "Simulator Round",
+      "campus": "Main Clubhouse",
+      "departments": [
+        {
+          "department": "Simulator Round",
+          "campus": "Main Clubhouse",
+          "timestamp": "2025-11-20T22:26:30.297Z"
+        }
+      ]
+    }
+  ]
 }
