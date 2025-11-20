@@ -1,10 +1,6 @@
-import { useState } from "react";
-  const handleDownloadReport = () => {
-    const year = new Date().getFullYear();
-    const url = `${API_BASE_URL}/api/report/guests?year=${year}`;
-    window.open(url, "_blank");
-  };
-
+// client/src/App.jsx
+import { useState, useRef } from "react";
+import { BrowserPDF417Reader } from "@zxing/browser";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
@@ -22,6 +18,13 @@ const CAMPUSES = ["Main Clubhouse", "Fitness Center"];
 function App() {
   const [activeTab, setActiveTab] = useState("checkin"); // "checkin" | "lookup"
 
+  // ----- Camera / scanning -----
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState("");
+  const [isDecodingSnapshot, setIsDecodingSnapshot] = useState(false);
+  const videoRef = useRef(null);
+  const codeReaderRef = useRef(null);
+
   // ----- Check-in state -----
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [campus, setCampus] = useState(CAMPUSES[0]);
@@ -31,7 +34,7 @@ function App() {
   const [lastName, setLastName] = useState("");
 
   const [checkinLoading, setCheckinLoading] = useState(false);
-  const [checkinStatus, setCheckinStatus] = useState(null); // "checked-in" | "already" | "blocked" | null
+  const [checkinStatus, setCheckinStatus] = useState(null); // "checked-in" | "already-checked-in-today" | "blocked" | null
   const [checkinMessage, setCheckinMessage] = useState("");
   const [checkinError, setCheckinError] = useState("");
   const [visitStats, setVisitStats] = useState(null); // { visitsThisYear, maxVisitsPerYear }
@@ -87,42 +90,180 @@ function App() {
 
       if (res.status === 404) {
         setAutoFillMessage(
-          "New guest. Please enter first and last name (if available)."
+          "New guest. Please enter first and last name if available."
         );
         return;
       }
 
-      const data = await res.json();
       if (!res.ok) {
-        setAutoFillMessage("");
-        setCheckinError(data.error || "Error looking up guest.");
-        return;
+        throw new Error("Failed to look up guest");
       }
 
-      const { guest, summary } = data;
-
-      setFirstName(guest.firstName || "");
-      setLastName(guest.lastName || "");
-      setAutoFillMessage(
-        `Returning guest found. Visits this year: ${
-          summary?.totalYearVisits ?? 0
-        } / 9.`
-      );
-
-      setSelectedGuest(guest);
-      setVisitSummary(summary);
-      setVisitError("");
-      populateEditFieldsFromGuest(guest);
+      const data = await res.json();
+      const g = data.guest;
+      if (g) {
+        if (g.firstName) setFirstName(g.firstName);
+        if (g.lastName) setLastName(g.lastName);
+        setAutoFillMessage("Existing guest found. Name auto-filled.");
+      }
     } catch (err) {
-      console.error(err);
-      setCheckinError("Network error finding guest by license.");
+      console.error("Error in handleLicenseBlur:", err);
+      setAutoFillMessage("");
+      // Don't block check-in, just skip auto-fill on error.
     }
   };
 
-  // -------- Check-in handler --------
-  const handleCheckIn = async () => {
+  // -------- Camera scanning + OpenAI parse (snapshot based) --------
+  async function handleBarcodeDecoded(rawBarcodeText) {
+    // we don't stop the camera here; staff might want to rescan
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/parse-barcode`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawBarcodeData: rawBarcodeText }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to parse barcode");
+      }
+
+      const data = await res.json();
+      const parsed = data.parsed || {};
+
+      if (parsed.licenseState) setLicenseState(parsed.licenseState);
+      if (parsed.licenseNumber) setLicenseNumber(parsed.licenseNumber);
+      if (parsed.firstName) setFirstName(parsed.firstName);
+      if (parsed.lastName) setLastName(parsed.lastName);
+
+      setScanError("");
+      setAutoFillMessage("Info filled from scanned license.");
+    } catch (err) {
+      console.error("Error parsing barcode:", err);
+      setScanError(
+        "Scanned barcode, but could not read license info. Please enter manually."
+      );
+    }
+  }
+
+  async function startScanner() {
+    setScanError("");
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setScanError("Camera not supported on this device/browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }, // back camera on phones if possible
+        audio: false,
+      });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setIsScanning(true);
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      setScanError(
+        "Unable to access camera. Check browser permissions or try a different device."
+      );
+      setIsScanning(false);
+    }
+  }
+
+  function stopScanner() {
+    setIsScanning(false);
+
+    try {
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+        videoRef.current.srcObject = null;
+      }
+    } catch (err) {
+      console.error("Error stopping camera:", err);
+    }
+  }
+
+  async function captureSnapshotAndDecode() {
+    setScanError("");
+
+    const video = videoRef.current;
+    if (!video) {
+      setScanError("Camera not ready.");
+      return;
+    }
+
+    // Create an in-memory canvas to capture a frame
+    const canvas = document.createElement("canvas");
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, width, height);
+
+    // Convert canvas to image for ZXing
+    const img = new Image();
+    img.src = canvas.toDataURL("image/png");
+
+    setIsDecodingSnapshot(true);
+
+    img.onload = async () => {
+      try {
+        if (!codeReaderRef.current) {
+          codeReaderRef.current = new BrowserPDF417Reader();
+        }
+
+        const result = await codeReaderRef.current.decodeFromImageElement(img);
+
+        if (result) {
+          console.log("Snapshot barcode detected:", result);
+          const text = result.getText();
+          await handleBarcodeDecoded(text);
+        } else {
+          setScanError(
+            "Could not read barcode from snapshot. Try holding closer and try again."
+          );
+        }
+      } catch (err) {
+        console.error("Error decoding snapshot:", err);
+        setScanError(
+          "Could not read barcode from snapshot. Try better lighting or hold the barcode closer and flatter."
+        );
+      } finally {
+        setIsDecodingSnapshot(false);
+      }
+    };
+
+    img.onerror = () => {
+      setIsDecodingSnapshot(false);
+      setScanError("Failed to capture image from camera.");
+    };
+  }
+
+  // -------- Download report --------
+  const handleDownloadReport = () => {
+    const year = new Date().getFullYear();
+    const url = `${API_BASE_URL}/api/report/guests?year=${year}`;
+    window.open(url, "_blank");
+  };
+
+  // -------- Check-in submit --------
+  const handleCheckinSubmit = async (e) => {
+    e.preventDefault();
     resetCheckinMessages();
+    setAutoFillMessage("");
     setCheckinLoading(true);
+
+    if (!licenseState || !licenseNumber || !department || !campus) {
+      setCheckinError("Please fill in all required fields.");
+      setCheckinLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/checkin`, {
@@ -131,8 +272,8 @@ function App() {
         body: JSON.stringify({
           licenseState,
           licenseNumber,
-          firstName: firstName || undefined,
-          lastName: lastName || undefined,
+          firstName: firstName || null,
+          lastName: lastName || null,
           department,
           campus,
         }),
@@ -141,110 +282,109 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setCheckinStatus("blocked");
-        setCheckinError(data.message || data.error || "Error checking in guest.");
-        if (data.stats) setVisitStats(data.stats);
-      } else {
-        if (data.status === "checked-in") {
-          setCheckinStatus("checked-in");
-        } else if (data.status === "already-checked-in-today") {
-          setCheckinStatus("already");
+        if (data.status === "blocked") {
+          setCheckinStatus("blocked");
+          setCheckinMessage(data.message || "Guest is blocked.");
+          setVisitStats(data.stats || null);
+        } else {
+          setCheckinError(
+            data.error || data.message || "Failed to check in guest."
+          );
         }
-        setCheckinMessage(data.message || "Check-in complete.");
-        if (data.stats) setVisitStats(data.stats);
-
-        // After a successful check-in, refresh visit summary for this guest
-        if (data.guest && data.guest.id) {
-          setSelectedGuest(data.guest);
-          try {
-            const res2 = await fetch(
-              `${API_BASE_URL}/api/visits/${data.guest.id}`
-            );
-            const summary = await res2.json();
-            if (res2.ok) {
-              setVisitSummary(summary);
-            }
-          } catch (e) {
-            console.error("Error refreshing visit summary after check-in", e);
-          }
-        }
+        return;
       }
+
+      setCheckinStatus(data.status);
+      setCheckinMessage(data.message || "");
+      setVisitStats(data.stats || null);
     } catch (err) {
-      console.error(err);
-      setCheckinStatus(null);
-      setCheckinError("Network error calling /api/checkin.");
+      console.error("Error checking in guest:", err);
+      setCheckinError("Network error while checking in guest.");
     } finally {
       setCheckinLoading(false);
     }
   };
 
-  // -------- Lookup handlers --------
-  const handleSearchGuests = async () => {
-    setLookupLoading(true);
+  // -------- Lookup guest list --------
+  const handleLookupSubmit = async (e) => {
+    e.preventDefault();
     setLookupError("");
     setLookupResults([]);
     setSelectedGuest(null);
     setVisitSummary(null);
-    setVisitError("");
-    setEditMessage("");
-    setEditError("");
 
-    if (!lookupQuery.trim()) {
-      setLookupLoading(false);
-      setLookupError("Enter a name or license number to search.");
-      return;
-    }
+    const q = lookupQuery.trim();
+    if (!q) return;
 
+    setLookupLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/lookup?q=${encodeURIComponent(lookupQuery.trim())}`
+        `${API_BASE_URL}/api/lookup?q=${encodeURIComponent(q)}`
       );
-      const data = await res.json();
-
       if (!res.ok) {
-        setLookupError(data.error || "Error searching for guests.");
-      } else {
-        setLookupResults(data || []);
-        if (data.length === 0) {
-          setLookupError("No guests found matching that search.");
-        }
+        throw new Error("Failed to search guests");
       }
+      const list = await res.json();
+      setLookupResults(list || []);
     } catch (err) {
-      console.error(err);
-      setLookupError("Network error searching for guests.");
+      console.error("Error searching guests:", err);
+      setLookupError("Failed to search guests.");
     } finally {
       setLookupLoading(false);
+    }
+  };
+
+  // -------- Fetch visits for selected guest --------
+  const fetchVisitsForGuest = async (guestId) => {
+    setVisitsLoading(true);
+    setVisitError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/visits/${guestId}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch visits");
+      }
+      const summary = await res.json();
+      setVisitSummary(summary);
+    } catch (err) {
+      console.error("Error fetching visits:", err);
+      setVisitError("Failed to load visit history.");
+    } finally {
+      setVisitsLoading(false);
     }
   };
 
   const handleSelectGuest = async (guest) => {
     setSelectedGuest(guest);
     populateEditFieldsFromGuest(guest);
-    setVisitSummary(null);
-    setVisitError("");
-    setVisitsLoading(true);
+    await fetchVisitsForGuest(guest.id);
+  };
+
+  // -------- Delete a visit (fix mistakes) --------
+  const handleDeleteVisit = async (visitId) => {
+    if (!selectedGuest) return;
+    const confirmDelete = window.confirm(
+      "Remove this visit? This will reduce the guest's visit count."
+    );
+    if (!confirmDelete) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/visits/${guest.id}`);
-      const data = await res.json();
-
+      const res = await fetch(`${API_BASE_URL}/api/visits/${visitId}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
-        setVisitError(data.error || "Error fetching visit history.");
-      } else {
-        setVisitSummary(data);
+        throw new Error("Delete failed");
       }
+      // Reload summary
+      await fetchVisitsForGuest(selectedGuest.id);
     } catch (err) {
-      console.error(err);
-      setVisitError("Network error fetching visit history.");
-    } finally {
-      setVisitsLoading(false);
+      console.error("Error deleting visit:", err);
+      alert("Failed to remove visit.");
     }
   };
 
   // -------- Save guest edits --------
   const handleSaveGuestEdits = async () => {
     if (!selectedGuest) return;
-
     setEditSaving(true);
     setEditMessage("");
     setEditError("");
@@ -264,442 +404,321 @@ function App() {
         }
       );
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setEditError(data.error || "Error updating guest.");
-      } else {
-        setSelectedGuest(data);
-        setEditMessage("Guest information updated.");
-        // Reload summary with updated guest
-        await handleSelectGuest(data);
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update guest.");
       }
+
+      const updated = await res.json();
+      setSelectedGuest(updated);
+      setEditMessage("Guest info updated.");
     } catch (err) {
-      console.error(err);
-      setEditError("Network error updating guest.");
+      console.error("Error updating guest:", err);
+      setEditError(err.message || "Failed to update guest.");
     } finally {
       setEditSaving(false);
     }
   };
 
-  // -------- Delete a visit --------
-  const handleDeleteVisit = async (visitId) => {
-    if (!selectedGuest) return;
-
-    if (
-      !window.confirm(
-        "Remove this visit? This will adjust yearly counts and July/August limits."
-      )
-    ) {
-      return;
-    }
-
-    setVisitsLoading(true);
-    setVisitError("");
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/visits/${visitId}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setVisitError(data.error || "Error removing visit.");
-      } else {
-        // Reload summary
-        await handleSelectGuest(selectedGuest);
-      }
-    } catch (err) {
-      console.error(err);
-      setVisitError("Network error removing visit.");
-    } finally {
-      setVisitsLoading(false);
-    }
-  };
-
-  // -------- CHECK-IN TAB UI --------
+  // -------- Render Check-in Tab --------
   const renderCheckinTab = () => (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "3fr 2fr",
-        gap: "1.5rem",
-        alignItems: "flex-start",
-      }}
-    >
-      {/* LEFT: form */}
-      <div>
-        <p
+    <form onSubmit={handleCheckinSubmit}>
+      <section
+        style={{
+          padding: "0.75rem 1rem",
+          border: "1px solid #ddd",
+          borderRadius: "10px",
+          marginBottom: "1rem",
+        }}
+      >
+        <p style={{ fontSize: "0.85rem", color: "#555", marginTop: 0 }}>
+          <strong>Required fields are marked with *</strong>
+        </p>
+
+        {/* Campus & Department */}
+        <div
           style={{
-            fontSize: "0.9rem",
-            color: "#777",
-            marginTop: 0,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "0.75rem",
             marginBottom: "0.75rem",
           }}
         >
-          <strong>Note:</strong> Fields marked with{" "}
-          <span style={{ color: "#c00" }}>*</span> are required.
-        </p>
+          <label>
+            Campus *
+            <select
+              value={campus}
+              onChange={(e) => setCampus(e.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "0.25rem",
+                padding: "0.4rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
 
-        {/* Campus */}
-        <section
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-            Campus <span style={{ color: "#c00" }}>*</span>
-          </h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-              gap: "0.5rem",
-            }}
-          >
-            {CAMPUSES.map((c) => {
-              const selected = c === campus;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCampus(c)}
-                  style={{
-                    padding: "0.6rem",
-                    borderRadius: "999px",
-                    border: selected ? "2px solid #006400" : "1px solid #ccc",
-                    background: selected ? "#e9f7ec" : "#f7f7f7",
-                    fontWeight: selected ? 700 : 500,
-                    cursor: "pointer",
-                  }}
-                >
+              }}
+            >
+              {CAMPUSES.map((c) => (
+                <option key={c} value={c}>
                   {c}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Departments */}
-        <section
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-            Department <span style={{ color: "#c00" }}>*</span>
-          </h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: "0.5rem",
-            }}
-          >
-            {DEPARTMENTS.map((d) => {
-              const selected = d === department;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDepartment(d)}
-                  style={{
-                    padding: "0.6rem",
-                    borderRadius: "999px",
-                    border: selected ? "2px solid #006400" : "1px solid #ccc",
-                    background: selected ? "#e9f7ec" : "#f7f7f7",
-                    fontWeight: selected ? 700 : 500,
-                    cursor: "pointer",
-                  }}
-                >
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Department *
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "0.25rem",
+                padding: "0.4rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+              }}
+            >
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
                   {d}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-        {/* ID + Name */}
-        <section
-          style={{
-            padding: "0.75rem 1rem 1rem",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Guest Details</h2>
-
-          <div
-            style={{
-              display: "grid",
-              gap: "0.75rem",
-              maxWidth: "420px",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 2fr",
-                gap: "0.5rem",
-              }}
-            >
-              <label>
-                License State <span style={{ color: "#c00" }}>*</span>
-                <input
-                  value={licenseState}
-                  onChange={(e) =>
-                    setLicenseState(e.target.value.toUpperCase())
-                  }
-                  maxLength={2}
-                  style={{
-                    width: "100%",
-                    marginTop: "0.25rem",
-                    padding: "0.4rem",
-                    borderRadius: "6px",
-                    border: "1px solid #ccc",
-                    textTransform: "uppercase",
-                  }}
-                />
-              </label>
-
-              <label>
-                License Number <span style={{ color: "#c00" }}>*</span>
-                <input
-                  value={licenseNumber}
-                  onChange={(e) => setLicenseNumber(e.target.value)}
-                  onBlur={handleLicenseBlur}
-                  style={{
-                    width: "100%",
-                    marginTop: "0.25rem",
-                    padding: "0.4rem",
-                    borderRadius: "6px",
-                    border: "1px solid #ccc",
-                  }}
-                />
-              </label>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "0.5rem",
-              }}
-            >
-              <label>
-                First Name
-                <span style={{ fontSize: "0.8rem", color: "#777" }}>
-                  {" "}
-                  (optional)
-                </span>
-                <input
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  style={{
-                    width: "100%",
-                    marginTop: "0.25rem",
-                    padding: "0.4rem",
-                    borderRadius: "6px",
-                    border: "1px solid #ccc",
-                  }}
-                />
-              </label>
-
-              <label>
-                Last Name
-                <span style={{ fontSize: "0.8rem", color: "#777" }}>
-                  {" "}
-                  (optional)
-                </span>
-                <input
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  style={{
-                    width: "100%",
-                    marginTop: "0.25rem",
-                    padding: "0.4rem",
-                    borderRadius: "6px",
-                    border: "1px solid #ccc",
-                  }}
-                />
-              </label>
-            </div>
-
-            {autoFillMessage && (
-              <div
-                style={{
-                  marginTop: "0.25rem",
-                  fontSize: "0.9rem",
-                  color: "#0b5c0b",
-                }}
-              >
-                {autoFillMessage}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleCheckIn}
-              style={{
-                marginTop: "0.5rem",
-                padding: "0.7rem",
-                borderRadius: "999px",
-                border: "none",
-                background: "#006400",
-                color: "white",
-                fontWeight: 700,
-                fontSize: "1rem",
-                cursor: "pointer",
-                opacity:
-                  checkinLoading || !licenseState || !licenseNumber
-                    ? 0.6
-                    : 1,
-              }}
-              disabled={checkinLoading || !licenseState || !licenseNumber}
-            >
-              {checkinLoading ? "Checking in..." : "Check In Guest"}
-            </button>
-          </div>
-        </section>
-
-        {/* Result card */}
-        <section style={{ marginTop: "1rem", maxWidth: "480px" }}>
-          {checkinError && (
-            <div
-              style={{
-                border: "1px solid #ffb3b3",
-                background: "#ffe6e6",
-                color: "#900",
-                padding: "0.75rem",
-                borderRadius: "8px",
-              }}
-            >
-              <strong>Check-in blocked</strong>
-              <div>{checkinError}</div>
-              {visitStats && (
-                <div style={{ marginTop: "0.25rem", fontSize: "0.9rem" }}>
-                  Visits this year: {visitStats.visitsThisYear} /{" "}
-                  {visitStats.maxVisitsPerYear}
-                </div>
-              )}
-            </div>
-          )}
-
-          {checkinStatus && !checkinError && (
-            <div
-              style={{
-                border: "1px solid #b3dfb3",
-                background:
-                  checkinStatus === "already" ? "#fff7e0" : "#e6f7ea",
-                color: "#064d06",
-                padding: "0.75rem",
-                borderRadius: "8px",
-              }}
-            >
-              <strong>
-                {checkinStatus === "checked-in"
-                  ? "Guest checked in"
-                  : "Guest already checked in today"}
-              </strong>
-              <div>{checkinMessage}</div>
-              {visitStats && (
-                <div style={{ marginTop: "0.25rem", fontSize: "0.9rem" }}>
-                  Visits this year: {visitStats.visitsThisYear} /{" "}
-                  {visitStats.maxVisitsPerYear}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* RIGHT: quick visit summary for current guest */}
-      <div>
-        <h3 style={{ marginTop: 0 }}>Current Guest Overview</h3>
+        {/* License info */}
         <div
           style={{
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-            padding: "0.75rem 1rem",
-            minHeight: "120px",
+            display: "grid",
+            gridTemplateColumns: "1fr 2fr",
+            gap: "0.75rem",
+            marginBottom: "0.75rem",
           }}
         >
-          {(!selectedGuest || !visitSummary) && (
-            <p style={{ color: "#777", fontSize: "0.9rem" }}>
-              After checking in or auto-filling a returning guest, their visit
-              history will show here.
-            </p>
-          )}
-
-          {selectedGuest && visitSummary && (
-            <>
-              <p style={{ marginBottom: "0.25rem" }}>
-                <strong>
-                  {(selectedGuest.firstName || "").trim()}{" "}
-                  {(selectedGuest.lastName || "").trim()}
-                </strong>
-                <br />
-                <span style={{ fontSize: "0.9rem", color: "#555" }}>
-                  {selectedGuest.licenseState} {selectedGuest.licenseNumber}
-                </span>
-              </p>
-              <p style={{ fontSize: "0.9rem" }}>
-                <strong>Visits this year:</strong>{" "}
-                {visitSummary.totalYearVisits}
-                <br />
-                <strong>July visits:</strong>{" "}
-                {visitSummary.julyVisits?.length || 0} / 1
-                <br />
-                <strong>August visits:</strong>{" "}
-                {visitSummary.augustVisits?.length || 0} / 1
-              </p>
-              <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>
-                <strong>Recent visits:</strong>
-              </p>
-              {visitSummary.visits.length === 0 && (
-                <p style={{ fontSize: "0.9rem" }}>
-                  No visits yet for this year.
-                </p>
-              )}
-              {visitSummary.visits.length > 0 && (
-                <ul style={{ fontSize: "0.9rem", paddingLeft: "1.1rem" }}>
-                  {visitSummary.visits.slice(-5).map((v) => (
-                    <li key={v.id}>
-                      {v.date} — {v.campus} — {v.firstDepartment}
-                      {v.departments && v.departments.length > 0 && (
-                        <div style={{ fontSize: "0.85rem", color: "#555" }}>
-                          Departments used that day:{" "}
-                          {v.departments.map((d) => d.department).join(", ")}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-          {visitsLoading && <p>Loading visits…</p>}
-          {visitError && (
-            <p style={{ color: "red", fontSize: "0.9rem" }}>{visitError}</p>
-          )}
+          <label>
+            License State *
+            <input
+              value={licenseState}
+              onChange={(e) => setLicenseState(e.target.value.toUpperCase())}
+              onBlur={handleLicenseBlur}
+              maxLength={2}
+              style={{
+                width: "100%",
+                marginTop: "0.25rem",
+                padding: "0.4rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+                textTransform: "uppercase",
+              }}
+            />
+          </label>
+          <label>
+            License Number *
+            <input
+              value={licenseNumber}
+              onChange={(e) => setLicenseNumber(e.target.value)}
+              onBlur={handleLicenseBlur}
+              style={{
+                width: "100%",
+                marginTop: "0.25rem",
+                padding: "0.4rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+              }}
+            />
+          </label>
         </div>
-      </div>
-    </div>
+
+        {/* Camera controls */}
+        <div style={{ marginTop: "0.75rem", marginBottom: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={isScanning ? stopScanner : startScanner}
+            style={{
+              padding: "0.4rem 0.9rem",
+              borderRadius: "999px",
+              border: "1px solid #004d99",
+              background: isScanning ? "#ffe6e6" : "#004d99",
+              color: isScanning ? "#900" : "white",
+              fontSize: "0.9rem",
+              cursor: "pointer",
+              marginRight: "0.5rem",
+            }}
+          >
+            {isScanning ? "Stop Camera" : "Start Camera"}
+          </button>
+
+          <button
+            type="button"
+            onClick={captureSnapshotAndDecode}
+            disabled={!isScanning || isDecodingSnapshot}
+            style={{
+              padding: "0.4rem 0.9rem",
+              borderRadius: "999px",
+              border: "1px solid #004d99",
+              background: !isScanning ? "#ccc" : "#e0f0ff",
+              color: !isScanning ? "#777" : "#004d99",
+              fontSize: "0.9rem",
+              cursor: !isScanning ? "not-allowed" : "pointer",
+            }}
+          >
+            {isDecodingSnapshot ? "Reading..." : "Capture & Read Barcode"}
+          </button>
+
+          <p
+            style={{
+              fontSize: "0.8rem",
+              color: "#555",
+              marginTop: "0.3rem",
+            }}
+          >
+            On iPad or phone, tap "Start Camera" and point at the barcode on the
+            back of the license. When it looks clear, tap "Capture &amp; Read
+            Barcode". We'll auto-fill the license and name if possible.
+          </p>
+        </div>
+
+        {isScanning && (
+          <div
+            style={{
+              marginTop: "0.5rem",
+              padding: "0.5rem",
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+            }}
+          >
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ width: "100%", borderRadius: "8px" }}
+            />
+            {scanError && (
+              <p
+                style={{
+                  color: "red",
+                  fontSize: "0.8rem",
+                  marginTop: "0.4rem",
+                }}
+              >
+                {scanError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Name fields */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "0.75rem",
+            marginTop: "0.75rem",
+          }}
+        >
+          <label>
+            First Name
+            <input
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "0.25rem",
+                padding: "0.4rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+              }}
+            />
+          </label>
+          <label>
+            Last Name
+            <input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "0.25rem",
+                padding: "0.4rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+              }}
+            />
+          </label>
+        </div>
+
+        {autoFillMessage && (
+          <p
+            style={{
+              marginTop: "0.5rem",
+              fontSize: "0.85rem",
+              color: "#0b5c0b",
+            }}
+          >
+            {autoFillMessage}
+          </p>
+        )}
+
+        {/* Messages */}
+        {checkinError && (
+          <p style={{ marginTop: "0.5rem", color: "red", fontSize: "0.9rem" }}>
+            {checkinError}
+          </p>
+        )}
+        {checkinMessage && (
+          <p
+            style={{
+              marginTop: "0.5rem",
+              color:
+                checkinStatus === "checked-in"
+                  ? "#0b5c0b"
+                  : checkinStatus === "blocked"
+                  ? "#b30000"
+                  : "#004d99",
+              fontSize: "0.95rem",
+              fontWeight: 500,
+            }}
+          >
+            {checkinMessage}
+          </p>
+        )}
+
+        {visitStats && (
+          <p style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
+            <strong>Visits this year:</strong> {visitStats.visitsThisYear} /{" "}
+            {visitStats.maxVisitsPerYear}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={checkinLoading}
+          style={{
+            marginTop: "0.75rem",
+            padding: "0.5rem 1.2rem",
+            borderRadius: "999px",
+            border: "none",
+            background: "#006400",
+            color: "white",
+            fontWeight: 600,
+            cursor: "pointer",
+            opacity: checkinLoading ? 0.7 : 1,
+          }}
+        >
+          {checkinLoading ? "Checking in..." : "Check In Guest"}
+        </button>
+      </section>
+    </form>
   );
 
-  // -------- LOOKUP TAB UI --------
+  // -------- Render Lookup Tab --------
   const renderLookupTab = () => (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "2fr 3fr",
-        gap: "1.5rem",
+        gridTemplateColumns: "1.2fr 1.5fr",
+        gap: "1.25rem",
         alignItems: "flex-start",
       }}
     >
@@ -711,39 +730,43 @@ function App() {
             padding: "0.75rem 1rem",
             border: "1px solid #ddd",
             borderRadius: "10px",
+            marginBottom: "1rem",
           }}
         >
-          <label>
-            Search by name or license number
-            <input
-              value={lookupQuery}
-              onChange={(e) => setLookupQuery(e.target.value)}
-              placeholder="e.g. Smith or 12345"
+          <form onSubmit={handleLookupSubmit}>
+            <label style={{ display: "block", marginBottom: "0.5rem" }}>
+              Search by name or license info
+              <input
+                value={lookupQuery}
+                onChange={(e) => setLookupQuery(e.target.value)}
+                placeholder="e.g. Smith, Jane, ID 12345"
+                style={{
+                  width: "100%",
+                  marginTop: "0.25rem",
+                  padding: "0.4rem",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc",
+                }}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={lookupLoading}
               style={{
-                width: "100%",
                 marginTop: "0.25rem",
-                padding: "0.4rem",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
+                padding: "0.45rem 0.9rem",
+                borderRadius: "999px",
+                border: "none",
+                background: "#004d99",
+                color: "white",
+                fontWeight: 600,
+                cursor: "pointer",
+                opacity: lookupLoading ? 0.7 : 1,
               }}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={handleSearchGuests}
-            style={{
-              marginTop: "0.5rem",
-              padding: "0.5rem 0.9rem",
-              borderRadius: "999px",
-              border: "none",
-              background: "#006400",
-              color: "white",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {lookupLoading ? "Searching..." : "Search"}
-          </button>
+            >
+              {lookupLoading ? "Searching..." : "Search"}
+            </button>
+          </form>
 
           {lookupError && (
             <p style={{ color: "red", marginTop: "0.5rem" }}>{lookupError}</p>
@@ -782,7 +805,9 @@ function App() {
                         {(g.lastName || "").trim()}
                       </strong>
                       <br />
-                      <span style={{ fontSize: "0.85rem", color: "#555" }}>
+                      <span
+                        style={{ fontSize: "0.85rem", color: "#555" }}
+                      >
                         {g.licenseState} {g.licenseNumber}
                       </span>
                     </li>
@@ -856,7 +881,12 @@ function App() {
                         {v.date} — {v.campus} — {v.firstDepartment}
                       </div>
                       {v.departments && v.departments.length > 0 && (
-                        <div style={{ fontSize: "0.85rem", color: "#555" }}>
+                        <div
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "#555",
+                          }}
+                        >
                           Departments used that day:{" "}
                           {v.departments.map((d) => d.department).join(", ")}
                         </div>
@@ -1025,6 +1055,7 @@ function App() {
     </div>
   );
 
+  // -------- Main render --------
   return (
     <div
       style={{
@@ -1037,10 +1068,13 @@ function App() {
       <header style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>The Valley Club — Guest Check-In</h1>
         <p style={{ color: "#555", marginTop: "0.25rem" }}>
-          Staff tool for recording daily guest visits and tracking yearly limits.
+          Staff tool for recording daily guest visits and tracking yearly
+          limits.
         </p>
       </header>
-            <div
+
+      {/* Download report button */}
+      <div
         style={{
           display: "flex",
           justifyContent: "flex-end",
@@ -1063,7 +1097,6 @@ function App() {
           Download Yearly Guest Report (CSV)
         </button>
       </div>
-
 
       {/* Tabs */}
       <div
