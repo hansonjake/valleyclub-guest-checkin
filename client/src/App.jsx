@@ -1,5 +1,5 @@
 // client/src/App.jsx
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { BrowserPDF417Reader } from "@zxing/browser";
 
 const API_BASE_URL =
@@ -22,8 +22,25 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState("");
   const [isDecodingSnapshot, setIsDecodingSnapshot] = useState(false);
+  const [lastSnapshot, setLastSnapshot] = useState(null); // data URL of captured image
+
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
+  const streamRef = useRef(null);
+
+useEffect(() => {
+  if (isScanning && videoRef.current && streamRef.current) {
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+
+    video
+      .play()
+      .catch((err) => {
+        console.error("Error starting video playback:", err);
+        setScanError("Unable to show camera preview.");
+      });
+  }
+}, [isScanning]);
 
   // ----- Check-in state -----
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
@@ -109,13 +126,12 @@ function App() {
     } catch (err) {
       console.error("Error in handleLicenseBlur:", err);
       setAutoFillMessage("");
-      // Don't block check-in, just skip auto-fill on error.
+      // Don’t block check-in on errors
     }
   };
 
   // -------- Camera scanning + OpenAI parse (snapshot based) --------
   async function handleBarcodeDecoded(rawBarcodeText) {
-    // we don't stop the camera here; staff might want to rescan
     try {
       const res = await fetch(`${API_BASE_URL}/api/parse-barcode`, {
         method: "POST",
@@ -145,47 +161,47 @@ function App() {
     }
   }
 
-  async function startScanner() {
-    setScanError("");
+async function startScanner() {
+  setScanError("");
+  setLastSnapshot(null);
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setScanError("Camera not supported on this device/browser.");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }, // back camera on phones if possible
-        audio: false,
-      });
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      setIsScanning(true);
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setScanError(
-        "Unable to access camera. Check browser permissions or try a different device."
-      );
-      setIsScanning(false);
-    }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setScanError("Camera not supported on this device/browser.");
+    return;
   }
 
-  function stopScanner() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }, // back camera if possible
+      audio: false,
+    });
+
+    // Save stream for later; we attach it to the <video> in a useEffect
+    streamRef.current = stream;
+    setIsScanning(true);
+  } catch (err) {
+    console.error("Error accessing camera:", err);
+    setScanError(
+      "Unable to access camera. Check browser permissions or try a different device."
+    );
     setIsScanning(false);
-
-    try {
-      if (videoRef.current && videoRef.current.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
-        videoRef.current.srcObject = null;
-      }
-    } catch (err) {
-      console.error("Error stopping camera:", err);
-    }
   }
+}
+function stopScanner() {
+  setIsScanning(false);
+
+  try {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  } catch (err) {
+    console.error("Error stopping camera:", err);
+  }
+}
 
   async function captureSnapshotAndDecode() {
     setScanError("");
@@ -206,9 +222,12 @@ function App() {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, width, height);
 
+    const dataUrl = canvas.toDataURL("image/png");
+    setLastSnapshot(dataUrl);
+
     // Convert canvas to image for ZXing
     const img = new Image();
-    img.src = canvas.toDataURL("image/png");
+    img.src = dataUrl;
 
     setIsDecodingSnapshot(true);
 
@@ -455,7 +474,6 @@ function App() {
                 padding: "0.4rem",
                 borderRadius: "6px",
                 border: "1px solid #ccc",
-
               }}
             >
               {CAMPUSES.map((c) => (
@@ -573,9 +591,10 @@ function App() {
               marginTop: "0.3rem",
             }}
           >
-            On iPad or phone, tap "Start Camera" and point at the barcode on the
-            back of the license. When it looks clear, tap "Capture &amp; Read
-            Barcode". We'll auto-fill the license and name if possible.
+            Tap "Start Camera" and point at the barcode on the back of the
+            license. When it looks clear, tap "Capture &amp; Read Barcode".
+            We'll show the captured image and auto-fill the license and name if
+            possible.
           </p>
         </div>
 
@@ -588,6 +607,15 @@ function App() {
               border: "1px solid #ccc",
             }}
           >
+            <p
+              style={{
+                fontSize: "0.8rem",
+                marginBottom: "0.25rem",
+                color: "#555",
+              }}
+            >
+              Live camera preview:
+            </p>
             <video
               ref={videoRef}
               autoPlay
@@ -606,6 +634,32 @@ function App() {
                 {scanError}
               </p>
             )}
+          </div>
+        )}
+
+        {lastSnapshot && (
+          <div
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.5rem",
+              borderRadius: "8px",
+              border: "1px dashed #aaa",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "0.8rem",
+                marginBottom: "0.25rem",
+                color: "#555",
+              }}
+            >
+              Last captured image (used for barcode reading):
+            </p>
+            <img
+              src={lastSnapshot}
+              alt="Captured snapshot"
+              style={{ width: "100%", borderRadius: "8px" }}
+            />
           </div>
         )}
 

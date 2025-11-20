@@ -1,0 +1,16 @@
+{
+  "guests": [
+    {
+      "id": 1,
+      "licenseState": "ID",
+      "licenseNumber": "12345",
+      "firstName": "Jake",
+      "lastName": "Hanson"
+    }
+  ],
+  "visits": [],
+  "visitDepartments": [],
+  "guestIdCounter": 2,
+  "visitIdCounter": 2,
+  "visitDeptIdCounter": 3
+}
