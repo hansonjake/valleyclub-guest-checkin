@@ -249,6 +249,10 @@ export function getVisitForGuestOnDate(guestId, dateStr) {
   );
 }
 
+export function getVisitsForDate(dateStr) {
+  return visits.filter((v) => v.visitDate === dateStr);
+}
+
 export function getVisitsForGuestInYear(guestId, year) {
   return visits.filter((v) => {
     if (v.guestId !== guestId) return false;

@@ -15,6 +15,7 @@ import {
   restoreGuest,
   deleteVisitById,
   getVisitForGuestOnDate,
+  getVisitsForDate,
   getVisitsForGuestInYear,
   getVisitsForGuestInMonth,
   searchGuests,
@@ -148,6 +149,37 @@ app.get("/api/guest-name-suggestions", (req, res) => {
     exactMatch: exactMatch || null,
     similar,
   });
+});
+
+// -----------------------------
+// /api/visits-today (optional ?date=YYYY-MM-DD)
+// -----------------------------
+app.get("/api/visits-today", (req, res) => {
+  const dateStr = req.query.date || getTodayDateString();
+  const visitsForDay = getVisitsForDate(dateStr);
+
+  const visitsWithGuests = visitsForDay
+    .map((visit) => {
+      const guest = findGuestById(visit.guestId);
+      return {
+        id: visit.id,
+        guestId: visit.guestId,
+        firstName: guest?.firstName || "Unknown",
+        lastName: guest?.lastName || "Guest",
+        visitDate: visit.visitDate,
+        createdAt: visit.createdAt,
+        campus: visit.campus,
+        firstDepartment: visit.firstDepartment,
+        departments: visit.departments || [],
+      };
+    })
+    .sort((a, b) => {
+      const aTs = a.createdAt || `${a.visitDate}T00:00:00`;
+      const bTs = b.createdAt || `${b.visitDate}T00:00:00`;
+      return aTs > bTs ? -1 : aTs < bTs ? 1 : 0; // newest first
+    });
+
+  res.json({ date: dateStr, visits: visitsWithGuests });
 });
 
 // -----------------------------

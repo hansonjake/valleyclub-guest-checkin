@@ -39,6 +39,11 @@ function App() {
   const [pendingCheckinName, setPendingCheckinName] = useState(null); // { firstName, lastName }
   const [showSuggestionBox, setShowSuggestionBox] = useState(false);
 
+    // ----- Today's activity state -----
+  const [todayVisits, setTodayVisits] = useState([]);
+  const [todayVisitsLoading, setTodayVisitsLoading] = useState(false);
+  const [todayVisitsError, setTodayVisitsError] = useState("");
+
   // ----- Lookup & history state -----
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -88,6 +93,36 @@ function App() {
     window.open(url, "_blank");
   };
 
+    // -----------------------------
+  // Today's activity
+  // -----------------------------
+  const loadTodayVisits = async () => {
+    setTodayVisitsLoading(true);
+    setTodayVisitsError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/visits-today`);
+      const data = await res.json();
+      if (!res.ok) {
+        setTodayVisitsError(data.error || "Failed to load today's activity.");
+        setTodayVisits([]);
+        return;
+      }
+      setTodayVisits(data.visits || []);
+    } catch (err) {
+      console.error("Error loading today's activity:", err);
+      setTodayVisitsError("Network error loading today's activity.");
+      setTodayVisits([]);
+    } finally {
+      setTodayVisitsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTodayVisits();
+    const interval = setInterval(loadTodayVisits, 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // -----------------------------
   // Check-in helpers
   // -----------------------------
@@ -127,6 +162,8 @@ function App() {
       setCheckinStatus(data.status || "checked-in");
       setCheckinMessage(data.message || "");
       setVisitStats(data.stats || null);
+
+      await loadTodayVisits();
 
       // After successful check-in, reload visits if we have that guest selected
       if (selectedGuest && data.guest && selectedGuest.id === data.guest.id) {
@@ -294,6 +331,7 @@ function App() {
         return;
       }
       await loadVisitSummary(selectedGuest.id);
+      await loadTodayVisits();
     } catch (err) {
       console.error("Error deleting visit:", err);
       alert("Network error removing visit.");
@@ -834,19 +872,141 @@ function App() {
             background: "white",
           }}
         >
-          <h2 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
-            Check-In Notes
-          </h2>
-          <ul style={{ paddingLeft: "1.25rem", fontSize: "0.9rem" }}>
-            <li>Each guest may use multiple departments in a single day.</li>
-            <li>System counts that as only one visit for the day.</li>
-            <li>Guests are limited to 9 visits per calendar year.</li>
-            <li>Guests may visit only once in July and once in August.</li>
-            <li>
-              Use the Visit Date field to backfill a missed check-in from a
-              previous day.
-            </li>
-          </ul>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: 0 }}>Today's Activity</h2>
+            <span
+              style={{
+                background: "#eef4ff",
+                color: "#163572",
+                borderRadius: "999px",
+                padding: "0.25rem 0.75rem",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+              }}
+            >
+              {todayVisits.length} check-in{todayVisits.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <p style={{ marginTop: "0.5rem", color: "#444" }}>
+            Quick view of guests who have checked in today (newest first).
+          </p>
+
+          {todayVisitsError && (
+            <div
+              style={{
+                background: "#fff4f4",
+                border: "1px solid #f2c4c4",
+                color: "#8a1f1f",
+                padding: "0.75rem",
+                borderRadius: "8px",
+                marginBottom: "0.75rem",
+              }}
+            >
+              {todayVisitsError}
+            </div>
+          )}
+
+          {todayVisitsLoading ? (
+            <p style={{ marginTop: "0.5rem", color: "#333" }}>
+              Loading today's check-ins...
+            </p>
+          ) : todayVisits.length === 0 ? (
+            <p style={{ marginTop: "0.5rem", color: "#333" }}>
+              No guests have checked in yet today.
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: "0.65rem" }}>
+              {todayVisits.map((visit) => {
+                const departmentLabels = Array.from(
+                  new Set((visit.departments || []).map((d) => d.department))
+                );
+                const visitTime = visit.createdAt
+                  ? new Date(visit.createdAt).toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })
+                  : "";
+
+                return (
+                  <div
+                    key={visit.id}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "10px",
+                      padding: "0.65rem 0.75rem",
+                      background: "#f9fafb",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        marginBottom: "0.25rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, fontSize: "1rem" }}>
+                        {visit.firstName} {visit.lastName}
+                      </div>
+                      {visitTime && (
+                        <span
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "#333",
+                            background: "#eef2ff",
+                            borderRadius: "999px",
+                            padding: "0.2rem 0.6rem",
+                          }}
+                        >
+                          {visitTime}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ color: "#444", fontSize: "0.9rem" }}>
+                      {visit.campus} • {visit.firstDepartment}
+                    </div>
+                    {departmentLabels.length > 1 && (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "0.4rem",
+                          marginTop: "0.35rem",
+                        }}
+                      >
+                        {departmentLabels.map((dept) => (
+                          <span
+                            key={dept}
+                            style={{
+                              background: "#e7f2ff",
+                              color: "#0f3c99",
+                              borderRadius: "999px",
+                              padding: "0.2rem 0.6rem",
+                              fontSize: "0.82rem",
+                              border: "1px solid #cddcf7",
+                            }}
+                          >
+                            {dept}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}  
         </section>
       </div>
     );
@@ -1309,14 +1469,66 @@ function App() {
         margin: "0 auto",
       }}
     >
-      <header style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <header
+        style={{
+          marginBottom: "1.5rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+        }}
+      >
         <div>
           <h1 style={{ margin: 0 }}>The Valley Club — Guest Check-In</h1>
           <p style={{ color: "#555", marginTop: "0.25rem" }}>
             Staff tool for recording daily guest visits and tracking yearly limits.
           </p>
         </div>
-        <div>
+                <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "10px",
+              border: "1px solid #dbe4ff",
+              background: "#f3f7ff",
+              minWidth: "240px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.75rem",
+                letterSpacing: "0.05em",
+                fontWeight: 700,
+                color: "#0f3c99",
+                textTransform: "uppercase",
+              }}
+            >
+              Today's Check-Ins
+            </div>
+            <div
+              style={{
+                fontSize: "1.6rem",
+                fontWeight: 800,
+                color: "#0c2a66",
+                marginTop: "0.25rem",
+              }}
+            >
+              {todayVisits.length}
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#2c4d93" }}>
+              Guests checked in today. See details in the Today's Activity panel
+              below.
+            </div>
+          </div>
           <button
             type="button"
             onClick={handleDownloadReport}
