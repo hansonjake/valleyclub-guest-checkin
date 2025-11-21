@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-label="Illustration of Bald Mountain in Sun Valley, Idaho at golden hour" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff9ed" />
+      <stop offset="55%" stop-color="#fde9c7" />
+      <stop offset="100%" stop-color="#f6dca8" />
+    </linearGradient>
+    <linearGradient id="peak" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#f8df9d" />
+      <stop offset="100%" stop-color="#cba55d" />
+    </linearGradient>
+    <linearGradient id="shadow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7c6137" stop-opacity="0.92" />
+      <stop offset="100%" stop-color="#4e3b1f" stop-opacity="0.95" />
+    </linearGradient>
+    <linearGradient id="treeLine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2f3d2d" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#1f291e" stop-opacity="0.92" />
+    </linearGradient>
+    <linearGradient id="snow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffdf5" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#f7e9c9" stop-opacity="0.85" />
+    </linearGradient>
+    <filter id="grain" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="3" seed="3" stitchTiles="stitch" />
+      <feColorMatrix type="saturate" values="0" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.06" />
+      </feComponentTransfer>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#sky)" />
+  <rect width="1280" height="720" fill="#f7d68d" opacity="0.18" />
+  <rect width="1280" height="720" fill="#e7c070" opacity="0.12" />
+
+  <g filter="url(#grain)">
+    <rect width="1280" height="720" fill="#c7b07a" opacity="0.16" />
+  </g>
+
+  <g>
+    <path d="M30 520 C240 330 440 290 640 340 C820 380 980 340 1240 230 L1280 720 L0 720 Z" fill="url(#shadow)" opacity="0.82" />
+    <path d="M70 520 C280 360 470 300 680 340 C910 380 1050 330 1250 250 L1280 720 L0 720 Z" fill="url(#peak)" opacity="0.9" />
+    <path d="M360 380 L520 300 L610 350 L700 310 L840 380 L930 340 L1020 380 L1050 430 L360 430 Z" fill="url(#snow)" opacity="0.9" />
+    <path d="M330 430 C540 380 660 370 880 420 C1050 460 1160 470 1280 470 L1280 720 L0 720 L0 530 C120 500 230 470 330 430 Z" fill="url(#treeLine)" />
+  </g>
+
+  <g fill="#1b251a" opacity="0.94">
+    <rect x="210" y="540" width="12" height="110" rx="3" />
+    <polygon points="216,500 192,540 240,540" />
+    <rect x="260" y="550" width="10" height="100" rx="3" />
+    <polygon points="265,515 243,550 287,550" />
+    <rect x="315" y="545" width="12" height="105" rx="3" />
+    <polygon points="321,505 297,545 345,545" />
+    <rect x="1010" y="540" width="12" height="110" rx="3" />
+    <polygon points="1016,500 992,540 1040,540" />
+    <rect x="1060" y="550" width="10" height="100" rx="3" />
+    <polygon points="1065,515 1043,550 1087,550" />
+    <rect x="1115" y="545" width="12" height="105" rx="3" />
+    <polygon points="1121,505 1097,545 1145,545" />
+  </g>
+
+  <g stroke="#3c2a10" stroke-width="4" stroke-linecap="round" opacity="0.7">
+    <path d="M250 360 C420 320 520 320 720 350 C880 375 1010 365 1100 340" fill="none" />
+    <path d="M420 360 L470 300" />
+    <path d="M760 370 L820 310" />
+  </g>
+
+  <g fill="#b74c3d" stroke="#5e2a24" stroke-width="3" opacity="0.9">
+    <rect x="460" y="312" width="48" height="34" rx="8" />
+    <rect x="800" y="322" width="48" height="34" rx="8" />
+  </g>
+  <g stroke="#5e2a24" stroke-width="4" stroke-linecap="round" opacity="0.9">
+    <line x1="200" y1="250" x2="1100" y2="250" />
+    <line x1="484" y1="312" x2="484" y2="250" />
+    <line x1="824" y1="322" x2="824" y2="250" />
+  </g>
+
+  <ellipse cx="1050" cy="150" rx="110" ry="60" fill="#ffdf9c" opacity="0.5" />
+  <ellipse cx="1050" cy="150" rx="90" ry="46" fill="#f5c260" opacity="0.9" />
+</svg>
