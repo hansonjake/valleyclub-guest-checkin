@@ -34,12 +34,15 @@ function App() {
   const [visitDate, setVisitDate] = useState(() => getLocalDateString());
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
 
   const [checkinLoading, setCheckinLoading] = useState(false);
   const [checkinStatus, setCheckinStatus] = useState(null); // "checked-in" | "already-checked-in-today" | "blocked" | null
   const [checkinMessage, setCheckinMessage] = useState("");
   const [checkinError, setCheckinError] = useState("");
   const [visitStats, setVisitStats] = useState(null);
+  const [recentCheckin, setRecentCheckin] = useState(null);
 
   // For name suggestion flow
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -77,8 +80,8 @@ function App() {
   // ----- Edit Guest state -----
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [editLicenseState, setEditLicenseState] = useState("");
-  const [editLicenseNumber, setEditLicenseNumber] = useState("");
+  const [editPhoneNumber, setEditPhoneNumber] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editMessage, setEditMessage] = useState("");
   const [editError, setEditError] = useState("");
@@ -100,13 +103,14 @@ function App() {
     setCheckinMessage("");
     setCheckinError("");
     setVisitStats(null);
+    setRecentCheckin(null);
   };
 
   const populateEditFieldsFromGuest = (guest) => {
     setEditFirstName(guest.firstName || "");
     setEditLastName(guest.lastName || "");
-    setEditLicenseState(guest.licenseState || "");
-    setEditLicenseNumber(guest.licenseNumber || "");
+    setEditPhoneNumber(guest.phoneNumber || "");
+    setEditEmail(guest.email || "");
     setEditMessage("");
     setEditError("");
   };
@@ -188,9 +192,17 @@ function App() {
     setCheckinMessage("");
     setCheckinStatus(null);
     setVisitStats(null);
+    setRecentCheckin(null);
+
+    const trimmedPhone = phoneNumber.trim();
+    const trimmedEmail = email.trim();
 
     if (!firstName.trim() || !lastName.trim()) {
       setCheckinError("First and last name are required.");
+      return;
+    }
+    if (!trimmedPhone || !trimmedEmail) {
+      setCheckinError("Phone number and email are required.");
       return;
     }
 
@@ -203,6 +215,8 @@ function App() {
           guestId: guestIdOverride,
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          phoneNumber: trimmedPhone,
+          email: trimmedEmail,
           department,
           campus,
           visitDate, // <-- new
@@ -219,6 +233,12 @@ function App() {
       setCheckinStatus(data.status || "checked-in");
       setCheckinMessage(data.message || "");
       setVisitStats(data.stats || null);
+      setRecentCheckin({
+        guest: data.guest,
+        visit: data.visit,
+        status: data.status,
+        message: data.message,
+      });
 
       await loadTodayVisits();
       await loadWatchList();
@@ -250,9 +270,15 @@ function App() {
 
     const fn = firstName.trim();
     const ln = lastName.trim();
+    const trimmedPhone = phoneNumber.trim();
+    const trimmedEmail = email.trim();
 
     if (!fn || !ln) {
       setCheckinError("First and last name are required.");
+      return;
+    }
+    if (!trimmedPhone || !trimmedEmail) {
+      setCheckinError("Phone number and email are required.");
       return;
     }
 
@@ -442,8 +468,8 @@ function App() {
           body: JSON.stringify({
             firstName: editFirstName.trim(),
             lastName: editLastName.trim(),
-            licenseState: editLicenseState.trim().toUpperCase() || null,
-            licenseNumber: editLicenseNumber.trim() || null,
+            phoneNumber: editPhoneNumber.trim() || null,
+            email: editEmail.trim() || null,
           }),
         }
       );
@@ -803,6 +829,107 @@ function App() {
     );
   };
 
+    const renderRecentCheckin = () => {
+    if (!recentCheckin || !recentCheckin.guest || !recentCheckin.visit) {
+      return null;
+    }
+
+    const { guest, visit, status, message } = recentCheckin;
+    const firstDepartment =
+      visit.firstDepartment || visit.departments?.[0]?.department || "N/A";
+
+    const statusColor =
+      status === "blocked"
+        ? "#b42318"
+        : status === "already-checked-in-today"
+        ? "#b36b00"
+        : "#0b5c0b";
+
+    return (
+      <div
+        style={{
+          marginTop: "1rem",
+          padding: "0.9rem 1rem",
+          borderRadius: "14px",
+          border: "1px solid #dce3f3",
+          background: "linear-gradient(145deg, #f7f9ff, #f0f4ff)",
+          boxShadow: "0 14px 28px rgba(15, 23, 42, 0.08)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "0.35rem",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#1f2a4d" }}>
+            Latest check-in for {guest.firstName} {guest.lastName}
+          </div>
+          <span
+            style={{
+              padding: "0.25rem 0.65rem",
+              borderRadius: "999px",
+              background: "#fff",
+              border: `1px solid ${statusColor}`,
+              color: statusColor,
+              fontWeight: 700,
+              fontSize: "0.85rem",
+            }}
+          >
+            {status === "already-checked-in-today"
+              ? "Already checked in"
+              : status === "blocked"
+              ? "Blocked"
+              : "Checked in"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "0.5rem 1.25rem",
+            fontSize: "0.95rem",
+            color: "#1f2937",
+          }}
+        >
+          <div>
+            <strong>Visit date:</strong> {visit.visitDate}
+          </div>
+          <div>
+            <strong>Campus:</strong> {visit.campus}
+          </div>
+          <div>
+            <strong>Department:</strong> {firstDepartment}
+          </div>
+          <div>
+            <strong>Phone:</strong> {guest.phoneNumber || "—"}
+          </div>
+          <div>
+            <strong>Email:</strong> {guest.email || "—"}
+          </div>
+        </div>
+
+        {message && (
+          <p
+            style={{
+              marginTop: "0.6rem",
+              color: statusColor,
+              fontWeight: 600,
+              fontSize: "0.9rem",
+            }}
+          >
+            {message}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const renderCheckinTab = () => {
     const todayStr = getLocalDateString();
     const campusDepartments = CAMPUS_DEPARTMENTS[campus] || [];
@@ -826,6 +953,8 @@ function App() {
       suggestionsLoading ||
       !firstName.trim() ||
       !lastName.trim() ||
+      !phoneNumber.trim() ||
+      !email.trim() ||
       !department ||
       !campus ||
       !visitDate;
@@ -942,11 +1071,14 @@ function App() {
               value={visitDate}
               max={todayStr} // no future dates
               onChange={(e) => setVisitDate(e.target.value)}
+              required
               style={{
                 width: "100%",
-                padding: "0.4rem 0.6rem",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
+                padding: "0.65rem 0.75rem",
+                borderRadius: "10px",
+                border: "1px solid #d4d7e5",
+                background: "#f9fafb",
+                boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
               }}
             />
             <p
@@ -981,13 +1113,17 @@ function App() {
                 First Name <span style={{ color: "red" }}>*</span>
               </label>
               <input
+                type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
+                required
                 style={{
                   width: "100%",
-                  padding: "0.4rem 0.6rem",
-                  borderRadius: "6px",
-                  border: "1px solid #ccc",
+                  padding: "0.65rem 0.75rem",
+                  borderRadius: "10px",
+                  border: "1px solid #d4d7e5",
+                  background: "#f9fafb",
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
                 }}
               />
             </div>
@@ -1002,13 +1138,80 @@ function App() {
                 Last Name <span style={{ color: "red" }}>*</span>
               </label>
               <input
+                type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                required
                 style={{
                   width: "100%",
-                  padding: "0.4rem 0.6rem",
-                  borderRadius: "6px",
-                  border: "1px solid #ccc",
+                  padding: "0.65rem 0.75rem",
+                  borderRadius: "10px",
+                  border: "1px solid #d4d7e5",
+                  background: "#f9fafb",
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Contact fields */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+              marginBottom: "0.75rem",
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  fontWeight: 600,
+                  display: "block",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Phone Number <span style={{ color: "red" }}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                required
+                placeholder="e.g. 208-555-1234"
+                style={{
+                  width: "100%",
+                  padding: "0.65rem 0.75rem",
+                  borderRadius: "10px",
+                  border: "1px solid #d4d7e5",
+                  background: "#f9fafb",
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
+                }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  fontWeight: 600,
+                  display: "block",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Email <span style={{ color: "red" }}>*</span>
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="guest@example.com"
+                style={{
+                  width: "100%",
+                  padding: "0.65rem 0.75rem",
+                  borderRadius: "10px",
+                  border: "1px solid #d4d7e5",
+                  background: "#f9fafb",
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
                 }}
               />
             </div>
@@ -1061,6 +1264,7 @@ function App() {
           </button>
 
           {renderSuggestionBox()}
+          {renderRecentCheckin()}
         </section>
 
         {/* RIGHT: can be debug, instructions, etc. For now, simple info */}
@@ -1601,7 +1805,7 @@ function App() {
             >
               <h3 style={{ marginTop: 0 }}>Edit Guest Info</h3>
               <p style={{ fontSize: "0.85rem", color: "#777" }}>
-                Use this to correct typos in name or license info. Changes
+                Use this to correct typos in name or contact info. Changes
                 affect future check-ins.
               </p>
               <div
@@ -1644,34 +1848,30 @@ function App() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 2fr",
+                  gridTemplateColumns: "1fr 1fr",
                   gap: "0.5rem",
                   marginBottom: "0.5rem",
                 }}
               >
                 <label>
-                  License State
+                  Phone Number
                   <input
-                    value={editLicenseState}
-                    onChange={(e) =>
-                      setEditLicenseState(e.target.value.toUpperCase())
-                    }
-                    maxLength={2}
+                    value={editPhoneNumber}
+                    onChange={(e) => setEditPhoneNumber(e.target.value)}
                     style={{
                       width: "100%",
                       marginTop: "0.25rem",
                       padding: "0.4rem",
                       borderRadius: "6px",
                       border: "1px solid #ccc",
-                      textTransform: "uppercase",
                     }}
                   />
                 </label>
                 <label>
-                  License Number
+                  Email
                   <input
-                    value={editLicenseNumber}
-                    onChange={(e) => setEditLicenseNumber(e.target.value)}
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
                     style={{
                       width: "100%",
                       marginTop: "0.25rem",

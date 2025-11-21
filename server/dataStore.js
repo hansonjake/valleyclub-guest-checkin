@@ -76,7 +76,7 @@ export function findGuestById(id) {
   return guests.find((g) => g.id === id);
 }
 
-export function findOrCreateGuestByName({ firstName, lastName }) {
+export function findOrCreateGuestByName({ firstName, lastName, phoneNumber, email }) {
   const fnNorm = normalizeName(firstName);
   const lnNorm = normalizeName(lastName);
 
@@ -88,7 +88,22 @@ export function findOrCreateGuestByName({ firstName, lastName }) {
       normalizeNameLower(g.lastName) === lnNorm.toLowerCase()
   );
 
-  if (existing) return existing;
+  if (existing) {
+    let updated = false;
+    if (phoneNumber && phoneNumber !== existing.phoneNumber) {
+      existing.phoneNumber = phoneNumber;
+      updated = true;
+    }
+    if (email && email !== existing.email) {
+      existing.email = email;
+      updated = true;
+    }
+    if (updated) {
+      existing.updatedAt = new Date().toISOString();
+      saveData();
+    }
+    return existing;
+  }
 
   const newGuest = {
     id: guests.length ? Math.max(...guests.map((g) => g.id)) + 1 : 1,
@@ -96,6 +111,8 @@ export function findOrCreateGuestByName({ firstName, lastName }) {
     lastName: lnNorm,
     licenseState: null,
     licenseNumber: null,
+    phoneNumber: phoneNumber || null,
+    email: email || null,
     isDeleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -209,6 +226,12 @@ export function updateGuest(id, fields) {
   }
   if (fields.licenseNumber !== undefined) {
     guest.licenseNumber = fields.licenseNumber || null;
+  }
+  if (fields.phoneNumber !== undefined) {
+    guest.phoneNumber = fields.phoneNumber || null;
+  }
+  if (fields.email !== undefined) {
+    guest.email = fields.email || null;
   }
   if (fields.isDeleted !== undefined) {
     guest.isDeleted = !!fields.isDeleted;

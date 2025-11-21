@@ -213,13 +213,24 @@ app.post("/api/checkin", (req, res) => {
     department,
     campus,
     visitDate, // NEW - optional
+    phoneNumber,
+    email,
   } = req.body;
+
+  const trimmedPhone = (phoneNumber || "").trim();
+  const trimmedEmail = (email || "").trim();
 
   if (!department) {
     return res.status(400).json({ error: "Missing department." });
   }
   if (!campus) {
     return res.status(400).json({ error: "Missing campus." });
+  }
+  if (!trimmedPhone) {
+    return res.status(400).json({ error: "Missing phoneNumber." });
+  }
+  if (!trimmedEmail) {
+    return res.status(400).json({ error: "Missing email." });
   }
 
   // Use provided date or default to today
@@ -253,7 +264,24 @@ app.post("/api/checkin", (req, res) => {
         .status(400)
         .json({ error: "Missing firstName or lastName." });
     }
-    guest = findOrCreateGuestByName({ firstName, lastName });
+    guest = findOrCreateGuestByName({
+      firstName,
+      lastName,
+      phoneNumber: trimmedPhone,
+      email: trimmedEmail,
+    });
+  }
+
+  // Update contact info on existing guests when provided
+  if (
+    (trimmedPhone && trimmedPhone !== guest.phoneNumber) ||
+    (trimmedEmail && trimmedEmail !== guest.email)
+  ) {
+    updateGuest(guest.id, {
+      phoneNumber: trimmedPhone,
+      email: trimmedEmail,
+    });
+    guest = findGuestById(guest.id);
   }
 
   // 2) Check if there's already a visit on that date
@@ -396,13 +424,16 @@ app.patch("/api/guests/:guestId", (req, res) => {
     return res.status(400).json({ error: "Invalid guest id." });
   }
 
-  const { licenseState, licenseNumber, firstName, lastName } = req.body;
+  const { licenseState, licenseNumber, firstName, lastName, phoneNumber, email } =
+    req.body;
 
   const updated = updateGuest(guestId, {
     licenseState: licenseState ? licenseState.toUpperCase() : undefined,
     licenseNumber,
     firstName,
     lastName,
+    phoneNumber,
+    email,
   });
 
   if (!updated) {
@@ -493,8 +524,8 @@ app.get("/api/report/guests", (req, res) => {
     "Guest ID",
     "First Name",
     "Last Name",
-    "License State",
-    "License Number",
+    "Phone Number",
+    "Email",
     "Year",
     "Total Visits",
     "July Visits",
@@ -522,8 +553,8 @@ app.get("/api/report/guests", (req, res) => {
       g.id,
       g.firstName || "",
       g.lastName || "",
-      g.licenseState || "",
-      g.licenseNumber || "",
+      g.phoneNumber || "",
+      g.email || "",
       year,
       total,
       julyCount,
