@@ -19,6 +19,7 @@ import {
   getVisitsForGuestInYear,
   getVisitsForGuestInMonth,
   searchGuests,
+  getGuestsByLastNameInitial,
   getGuestVisitsSummary,
   getAllGuests,
   getDeletedGuests,
@@ -349,10 +350,27 @@ app.post("/api/checkin", (req, res) => {
 // /api/lookup - search active guests
 // -----------------------------
 app.get("/api/lookup", (req, res) => {
-  const q = req.query.q || "";
-  if (!q.trim()) return res.json([]);
+  const q = (req.query.q || "").trim();
+  const lastNameInitial = (req.query.lastNameInitial || "").trim().charAt(0);
 
-  const results = searchGuests(q);
+  if (!q && !lastNameInitial) return res.json([]);
+
+  let results = [];
+  if (q) {
+    results = searchGuests(q);
+  }
+
+  if (lastNameInitial) {
+    const normalizedInitial = lastNameInitial.toLowerCase();
+    if (!q) {
+      results = getGuestsByLastNameInitial(normalizedInitial);
+    } else {
+      results = results.filter((g) =>
+        (g.lastName || "").trim().toLowerCase().startsWith(normalizedInitial)
+      );
+    }
+  }
+
   res.json(results);
 });
 

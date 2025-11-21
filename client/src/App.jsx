@@ -14,6 +14,7 @@ const CAMPUS_DEPARTMENTS = {
 };
 
 const CAMPUSES = Object.keys(CAMPUS_DEPARTMENTS);
+const LAST_NAME_INITIALS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -59,6 +60,7 @@ function App() {
 
   // ----- Lookup & history state -----
   const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupLastNameInitial, setLookupLastNameInitial] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResults, setLookupResults] = useState([]);
   const [lookupError, setLookupError] = useState("");
@@ -312,20 +314,25 @@ function App() {
   // -----------------------------
   // Lookup & visit history
   // -----------------------------
-  const handleLookupSearch = async (e) => {
-    e.preventDefault();
+  const resetLookupState = () => {
     setLookupError("");
     setLookupResults([]);
     setSelectedGuest(null);
     setVisitSummary(null);
     setVisitError("");
+      };
 
-    const q = lookupQuery.trim();
-    if (!q) return;
+  const performLookupSearch = async ({ query, lastNameInitial }) => {
+    const q = (query || "").trim();
+    const initial = (lastNameInitial || "").trim();
+
+    if (!q && !initial) return;
 
     setLookupLoading(true);
     try {
-      const params = new URLSearchParams({ q }).toString();
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (initial) params.set("lastNameInitial", initial);
       const res = await fetch(`${API_BASE_URL}/api/lookup?${params}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -340,6 +347,27 @@ function App() {
     } finally {
       setLookupLoading(false);
     }
+  };
+
+    const handleLookupSearch = async (e) => {
+    e.preventDefault();
+    resetLookupState();
+    await performLookupSearch({
+      query: lookupQuery,
+      lastNameInitial: lookupLastNameInitial,
+    });
+  };
+
+  const handleLookupInitialChange = async (e) => {
+    const value = e.target.value;
+    setLookupLastNameInitial(value);
+    resetLookupState();
+
+    if (!value && !lookupQuery.trim()) {
+      return;
+    }
+
+    await performLookupSearch({ query: lookupQuery, lastNameInitial: value });
   };
 
   const loadVisitSummary = async (guestId) => {
@@ -1325,6 +1353,34 @@ function App() {
               >
                 Search by name
               </label>
+                            <label
+                style={{
+                  fontWeight: 600,
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  marginTop: "0.75rem",
+                }}
+              >
+                Filter by last name (optional)
+              </label>
+              <select
+                value={lookupLastNameInitial}
+                onChange={handleLookupInitialChange}
+                style={{
+                  width: "100%",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <option value="">All last names</option>
+                {LAST_NAME_INITIALS.map((letter) => (
+                  <option key={letter} value={letter}>
+                    {letter}
+                  </option>
+                ))}
+              </select>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <input
                   value={lookupQuery}
@@ -1359,7 +1415,8 @@ function App() {
 
             {lookupResults.length === 0 && !lookupLoading && (
               <p style={{ fontSize: "0.9rem", color: "#666" }}>
-                No guests yet. Search by first or last name to begin.
+                No guests yet. Search by first or last name or choose a last
+                name initial to browse alphabetically.
               </p>
             )}
 

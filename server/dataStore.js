@@ -394,3 +394,22 @@ export function searchGuests(query) {
     })
     .slice(0, 50); // limit
 }
+
+export function getGuestsByLastNameInitial(initial) {
+  const normalizedInitial = normalizeNameLower(initial).charAt(0);
+  if (!normalizedInitial) return [];
+
+  return guests
+    .filter((g) => !g.isDeleted)
+    .filter((g) => normalizeNameLower(g.lastName).startsWith(normalizedInitial))
+    .sort((a, b) => {
+      const lastA = normalizeNameLower(a.lastName);
+      const lastB = normalizeNameLower(b.lastName);
+      if (lastA !== lastB) return lastA.localeCompare(lastB);
+
+      const firstA = normalizeNameLower(a.firstName);
+      const firstB = normalizeNameLower(b.firstName);
+      return firstA.localeCompare(firstB);
+    })
+    .slice(0, 50);
+}
