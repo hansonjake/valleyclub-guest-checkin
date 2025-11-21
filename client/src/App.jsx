@@ -1,6 +1,5 @@
 // client/src/App.jsx
 import { useEffect, useState } from "react";
-import baldMountain from "./assets/bald-mountain-illustration.svg";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL &&
@@ -913,40 +912,6 @@ function App() {
 
         {/* RIGHT: can be debug, instructions, etc. For now, simple info */}
         <div style={{ display: "grid", gap: "1rem" }}>
-                    <div
-            aria-hidden="true"
-            style={{
-              position: "relative",
-              minHeight: "220px",
-              overflow: "hidden",
-              borderRadius: "12px",
-              border: "1px solid #f4c430",
-              backgroundImage: `linear-gradient(120deg, rgba(255, 250, 240, 0.78), rgba(246, 229, 199, 0.48)), url(${baldMountain})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              backgroundBlendMode: "overlay",
-              boxShadow: "0 16px 32px rgba(244, 196, 48, 0.22)",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                bottom: "1rem",
-                left: "1rem",
-                background: "rgba(255, 250, 240, 0.9)",
-                color: "#3f3410",
-                padding: "0.5rem 1rem",
-                borderRadius: "999px",
-                fontWeight: 800,
-                letterSpacing: "0.01em",
-                boxShadow: "0 10px 22px rgba(63, 52, 16, 0.12)",
-                border: "1px solid rgba(244, 196, 48, 0.55)",
-              }}
-            >
-              Bald Mountain · Sun Valley, Idaho
-            </div>
-          </div>
           <section
             style={{
               padding: "1rem 1.25rem",
