@@ -68,6 +68,11 @@ function App() {
   const [visitSummary, setVisitSummary] = useState(null);
   const [visitError, setVisitError] = useState("");
 
+    // ----- Weather state -----
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState("");
+
   // ----- Edit Guest state -----
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
@@ -462,6 +467,88 @@ function App() {
       alert("Network error archiving guest.");
     }
   };
+
+    const weatherCodeDescriptions = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    56: "Light freezing drizzle",
+    57: "Dense freezing drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    66: "Light freezing rain",
+    67: "Heavy freezing rain",
+    71: "Slight snow fall",
+    73: "Moderate snow fall",
+    75: "Heavy snow fall",
+    77: "Snow grains",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    85: "Slight snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+  };
+
+  const describeWeatherCode = (code) => {
+    if (code === null || code === undefined) return "—";
+    return weatherCodeDescriptions[code] || "Weather update";
+  };
+
+  const loadWeather = async () => {
+    setWeatherLoading(true);
+    setWeatherError("");
+    try {
+      const params = new URLSearchParams({
+        latitude: 43.5196,
+        longitude: -114.3153,
+        current_weather: "true",
+        temperature_unit: "fahrenheit",
+        windspeed_unit: "mph",
+        timezone: "America/Boise",
+      }).toString();
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+      if (!res.ok) {
+        setWeatherError("Unable to load weather right now.");
+        setWeatherData(null);
+        return;
+      }
+      const data = await res.json();
+      if (!data.current_weather) {
+        setWeatherError("Weather data temporarily unavailable.");
+        setWeatherData(null);
+        return;
+      }
+
+      setWeatherData({
+        temperature: data.current_weather.temperature,
+        windspeed: data.current_weather.windspeed,
+        weathercode: data.current_weather.weathercode,
+        time: data.current_weather.time,
+      });
+    } catch (err) {
+      console.error("Error loading weather:", err);
+      setWeatherError("Network error loading weather.");
+      setWeatherData(null);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWeather();
+    const interval = setInterval(loadWeather, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // -----------------------------
   // Deleted guests tab
@@ -1702,6 +1789,80 @@ function App() {
             justifyContent: "flex-end",
           }}
         >
+                    <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "16px",
+              border: "1px solid #d6e4ff",
+              background: "linear-gradient(135deg, #f3f7ff, #f9fbff)",
+              minWidth: "240px",
+              boxShadow: "0 18px 45px rgba(27, 51, 122, 0.12)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.75rem",
+                letterSpacing: "0.05em",
+                fontWeight: 700,
+                color: "#0f3c99",
+                textTransform: "uppercase",
+              }}
+            >
+              Hailey, ID Weather
+            </div>
+            {weatherLoading ? (
+              <p style={{ margin: "0.35rem 0 0", color: "#2c4d93" }}>
+                Loading...
+              </p>
+            ) : weatherError ? (
+              <p
+                style={{
+                  margin: "0.35rem 0 0",
+                  color: "#8a1f1f",
+                  fontSize: "0.9rem",
+                }}
+              >
+                {weatherError}
+              </p>
+            ) : weatherData ? (
+              <div style={{ marginTop: "0.35rem" }}>
+                <div
+                  style={{
+                    fontSize: "1.4rem",
+                    fontWeight: 800,
+                    color: "#0c2a66",
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "0.25rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {Math.round(weatherData.temperature)}°F
+                  <span
+                    style={{
+                      fontSize: "0.9rem",
+                      fontWeight: 600,
+                      color: "#2c4d93",
+                    }}
+                  >
+                    {describeWeatherCode(weatherData.weathercode)}
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.9rem", color: "#2c4d93" }}>
+                  Wind {Math.round(weatherData.windspeed)} mph
+                </div>
+                {weatherData.time && (
+                  <div style={{ fontSize: "0.8rem", color: "#4a5568" }}>
+                    Updated {new Date(weatherData.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ margin: "0.35rem 0 0", color: "#2c4d93" }}>
+                Weather unavailable.
+              </p>
+            )}
+          </div>
           <div
             style={{
               padding: "0.75rem 1rem",
