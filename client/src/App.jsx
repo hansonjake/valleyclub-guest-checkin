@@ -14,15 +14,20 @@ const DEPARTMENTS = [
 
 const CAMPUSES = ["Main Clubhouse", "Fitness Center"];
 
+const getLocalDateString = () => {
+  const now = new Date();
+  const offsetMinutes = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offsetMinutes * 60 * 1000);
+  return localDate.toISOString().slice(0, 10);
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState("checkin"); // "checkin" | "lookup" | "deleted"
 
   // ----- Check-in state -----
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [campus, setCampus] = useState(CAMPUSES[0]);
-  const [visitDate, setVisitDate] = useState(
-    () => new Date().toISOString().slice(0, 10) // default to today
-  );
+  const [visitDate, setVisitDate] = useState(() => getLocalDateString());
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
@@ -636,7 +641,7 @@ function App() {
   };
 
   const renderCheckinTab = () => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+   const todayStr = getLocalDateString();
 
     const buttonDisabled =
       checkinLoading ||
