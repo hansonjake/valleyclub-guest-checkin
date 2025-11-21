@@ -8,15 +8,12 @@ const API_BASE_URL =
     ? window.location.origin
     : "http://localhost:5001");
 
-const DEPARTMENTS = [
-  "Golf Round",
-  "Simulator Round",
-  "Pool Entry",
-  "Gym Entry",
-  "Tennis Entry",
-];
+const CAMPUS_DEPARTMENTS = {
+  "Main Clubhouse": ["Golf Round", "Simulator Round"],
+  "Fitness Center": ["Pool Entry", "Gym Entry", "Racquets Entry"],
+};
 
-const CAMPUSES = ["Main Clubhouse", "Fitness Center"];
+const CAMPUSES = Object.keys(CAMPUS_DEPARTMENTS);
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -29,8 +26,10 @@ function App() {
   const [activeTab, setActiveTab] = useState("checkin"); // "checkin" | "lookup" | "deleted"
 
   // ----- Check-in state -----
-  const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [campus, setCampus] = useState(CAMPUSES[0]);
+  const [department, setDepartment] = useState(
+    CAMPUS_DEPARTMENTS[CAMPUSES[0]][0]
+  );
   const [visitDate, setVisitDate] = useState(() => getLocalDateString());
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -86,6 +85,13 @@ function App() {
   const [deletedGuests, setDeletedGuests] = useState([]);
   const [deletedLoading, setDeletedLoading] = useState(false);
   const [deletedError, setDeletedError] = useState("");
+
+  useEffect(() => {
+    const availableDepartments = CAMPUS_DEPARTMENTS[campus] || [];
+    if (!availableDepartments.includes(department)) {
+      setDepartment(availableDepartments[0] || "");
+    }
+  }, [campus, department]);
 
   const resetCheckinMessages = () => {
     setCheckinStatus(null);
@@ -770,7 +776,8 @@ function App() {
   };
 
   const renderCheckinTab = () => {
-   const todayStr = getLocalDateString();
+    const todayStr = getLocalDateString();
+    const campusDepartments = CAMPUS_DEPARTMENTS[campus] || [];
 
     const buttonDisabled =
       checkinLoading ||
@@ -856,7 +863,7 @@ function App() {
                 border: "1px solid #ccc",
               }}
             >
-              {DEPARTMENTS.map((d) => (
+              {campusDepartments.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
