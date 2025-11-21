@@ -36,6 +36,7 @@ function App() {
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
+  const [showContactFields, setShowContactFields] = useState(false);
 
   const [checkinLoading, setCheckinLoading] = useState(false);
   const [linkedGuestId, setLinkedGuestId] = useState(null); // Guest currently powering check-in form
@@ -193,6 +194,9 @@ function App() {
     setExactSuggestion(null);
     setPendingCheckinName(null);
     setLinkedGuestId(null);
+    setShowContactFields(false);
+    setPhoneNumber("");
+    setEmail("");
   }, [firstName, lastName]);
 
   // -----------------------------
@@ -218,6 +222,7 @@ function App() {
     }
     if (!trimmedPhone || !trimmedEmail) {
       setCheckinError("Phone number and email are required.");
+      setShowContactFields(true);
       return;
     }
 
@@ -267,6 +272,7 @@ function App() {
       setLastName("");
       setPhoneNumber("");
       setEmail("");
+      setShowContactFields(false);
 
       await loadTodayVisits();
       await loadWatchList();
@@ -310,6 +316,11 @@ function App() {
     }
 
     if (suggestionsReviewed) {
+      if (!trimmedPhone || !trimmedEmail) {
+        setShowContactFields(true);
+        setCheckinError("Phone number and email are required.");
+        return;
+      }
       await performCheckin({ guestIdOverride: linkedGuestId });
       return;
     }
@@ -343,15 +354,13 @@ function App() {
 
       // If nothing at all, just check in as a new guest
       if (!exactMatch && cleanedSimilar.length === 0) {
-        if (!trimmedPhone || !trimmedEmail) {
-          setCheckinError("Phone number and email are required.");
-          setSuggestionsLoading(false);
-          return;
-        }
-
         setSuggestionsReviewed(true);
         setSuggestionsLoading(false);
-        await performCheckin({ guestIdOverride: null });
+        setShowContactFields(true);
+        setLinkedGuestId(null);
+        setCheckinMessage(
+          "No existing guest found. Please enter phone number and email, then click Check In."
+        );
         return;
       }
 
@@ -372,6 +381,9 @@ function App() {
     const fallbackPhone = guest.phoneNumber || phoneNumber;
     const fallbackEmail = guest.email || email;
 
+    const hasPhone = !!fallbackPhone;
+    const hasEmail = !!fallbackEmail;
+
     setPhoneNumber(fallbackPhone);
     setEmail(fallbackEmail);
     setSelectedGuest(guest);
@@ -379,8 +391,11 @@ function App() {
     setLinkedGuestId(guest.id || null);
 
     setCheckinMessage(
-      "Loaded existing guest details. Confirm contact info and click Check In."
+      hasPhone && hasEmail
+        ? "Loaded existing guest details. Confirm contact info and click Check In."
+        : "Guest is missing contact info. Please add phone number and email, then click Check In."
     );
+    setShowContactFields(true);
     setShowSuggestionBox(false);
     setNameSuggestions([]);
     setExactSuggestion(null);
@@ -395,6 +410,7 @@ function App() {
     setNameSuggestions([]);
     setExactSuggestion(null);
     setPendingCheckinName(null);
+    setShowContactFields(true);
     setCheckinMessage(
       "Creating a new guest. Please enter phone and email, then click Check In."
     );
@@ -1224,67 +1240,69 @@ function App() {
           </div>
 
           {/* Contact fields */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.75rem",
-              marginBottom: "0.75rem",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  fontWeight: 600,
-                  display: "block",
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Phone Number <span style={{ color: "red" }}>*</span>
-              </label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                required
-                placeholder="e.g. 208-555-1234"
-                style={{
-                  width: "100%",
-                  padding: "0.65rem 0.75rem",
-                  borderRadius: "10px",
-                  border: "1px solid #d4d7e5",
-                  background: "#f9fafb",
-                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
-                }}
-              />
+          {showContactFields && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.75rem",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    fontWeight: 600,
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Phone Number <span style={{ color: "red" }}>*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  required
+                  placeholder="e.g. 208-555-1234"
+                  style={{
+                    width: "100%",
+                    padding: "0.65rem 0.75rem",
+                    borderRadius: "10px",
+                    border: "1px solid #d4d7e5",
+                    background: "#f9fafb",
+                    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                />
+              </div>
+              <div>
+                <label
+                  style={{
+                    fontWeight: 600,
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Email <span style={{ color: "red" }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="guest@example.com"
+                  style={{
+                    width: "100%",
+                    padding: "0.65rem 0.75rem",
+                    borderRadius: "10px",
+                    border: "1px solid #d4d7e5",
+                    background: "#f9fafb",
+                    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                />
+              </div>
             </div>
-            <div>
-              <label
-                style={{
-                  fontWeight: 600,
-                  display: "block",
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Email <span style={{ color: "red" }}>*</span>
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="guest@example.com"
-                style={{
-                  width: "100%",
-                  padding: "0.65rem 0.75rem",
-                  borderRadius: "10px",
-                  border: "1px solid #d4d7e5",
-                  background: "#f9fafb",
-                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
-                }}
-              />
-            </div>
-          </div>
+          )}
 
           {/* Status & errors */}
           {checkinError && (
