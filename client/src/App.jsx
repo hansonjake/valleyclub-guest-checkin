@@ -121,7 +121,7 @@ function App() {
   // -----------------------------
   // Report download
   // -----------------------------
-  const handleDownloadReport = () => {
+  const handleDownloadYearlyReport = () => {
     const year = new Date().getFullYear();
     const url = `${API_BASE_URL}/api/report/guests?year=${year}`;
     window.open(url, "_blank");
@@ -2281,21 +2281,23 @@ function App() {
               below.
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleDownloadReport}
-            style={{
-              padding: "0.4rem 0.9rem",
-              borderRadius: "999px",
-              border: "1px solid #006400",
-              background: "white",
-              color: "#006400",
-              fontSize: "0.9rem",
-              cursor: "pointer",
-            }}
-          >
-            Download Yearly Guest Report (CSV)
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleDownloadYearlyReport}
+              style={{
+                padding: "0.4rem 0.9rem",
+                borderRadius: "999px",
+                border: "1px solid #0f3c99",
+                background: "white",
+                color: "#0f3c99",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              Download Yearly Report (CSV)
+            </button>
+          </div>
         </div>
       </header>
 

@@ -370,6 +370,60 @@ export function getGuestVisitsSummary(guestId) {
   };
 }
 
+export function getDepartmentUsageForYear(year) {
+  const usageMap = new Map();
+
+  visits.forEach((visit) => {
+    if (!visit.visitDate) return;
+    const visitYear = Number(visit.visitDate.slice(0, 4));
+    if (visitYear !== year) return;
+
+    const departmentEntries =
+      (visit.departments && visit.departments.length > 0)
+        ? visit.departments
+        : [
+            {
+              department: visit.firstDepartment,
+              campus: visit.campus,
+              timestamp: visit.createdAt,
+            },
+          ];
+
+    departmentEntries.forEach((entry) => {
+      const campus = entry.campus || visit.campus || "Unknown";
+      const department = entry.department || "Unknown";
+      const key = `${campus}|||${department}`;
+
+      if (!usageMap.has(key)) {
+        usageMap.set(key, {
+          campus,
+          department,
+          totalUses: 0,
+          guestIds: new Set(),
+        });
+      }
+
+      const stats = usageMap.get(key);
+      stats.totalUses += 1;
+      if (visit.guestId) {
+        stats.guestIds.add(visit.guestId);
+      }
+    });
+  });
+
+  return Array.from(usageMap.values())
+    .map(({ campus, department, totalUses, guestIds }) => ({
+      campus,
+      department,
+      totalUses,
+      uniqueGuests: guestIds.size,
+    }))
+    .sort((a, b) => {
+      if (a.campus !== b.campus) return a.campus.localeCompare(b.campus);
+      if (b.totalUses !== a.totalUses) return b.totalUses - a.totalUses;
+      return a.department.localeCompare(b.department);
+    });
+}
 export function getWatchlistGuests(threshold = 7) {
   const activeGuests = guests.filter((g) => !g.isDeleted);
 

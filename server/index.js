@@ -23,6 +23,7 @@ import {
   getGuestVisitsSummary,
   getAllGuests,
   getDeletedGuests,
+  getDepartmentUsageForYear,
   createVisit,
   addDepartmentToVisit,
   getWatchlistGuests,
@@ -513,14 +514,14 @@ app.get("/api/deleted-guests", (req, res) => {
 });
 
 // -----------------------------
-// CSV report of all active guests for a given year
+// CSV report combining guest visits and department usage for a given year
 // -----------------------------
 app.get("/api/report/guests", (req, res) => {
   const year = Number(req.query.year) || new Date().getFullYear();
 
   const guests = getAllGuests().filter((g) => !g.isDeleted);
 
-  const header = [
+  const guestHeader = [
     "Guest ID",
     "First Name",
     "Last Name",
@@ -533,7 +534,7 @@ app.get("/api/report/guests", (req, res) => {
     "Last Visit Date",
   ];
 
-  const rows = [header.map(csvValue).join(",")];
+  const guestRows = [guestHeader.map(csvValue).join(",")];
 
   guests.forEach((g) => {
     const summary = getGuestVisitsSummary(g.id);
@@ -562,15 +563,45 @@ app.get("/api/report/guests", (req, res) => {
       lastVisitDate,
     ].map(csvValue);
 
-    rows.push(row.join(","));
+    guestRows.push(row.join(","));
   });
 
-  const csv = rows.join("\n");
+  const departmentUsage = getDepartmentUsageForYear(year);
+
+  const departmentHeader = [
+    "Campus",
+    "Department",
+    "Year",
+    "Total Uses",
+    "Unique Guests",
+  ];
+
+  const departmentRows = [departmentHeader.map(csvValue).join(",")];
+
+  departmentUsage.forEach((entry) => {
+    const row = [
+      entry.campus || "",
+      entry.department || "",
+      year,
+      entry.totalUses,
+      entry.uniqueGuests,
+    ].map(csvValue);
+
+    departmentRows.push(row.join(","));
+  });
+
+  const csv = [
+    "Guest Visit Summary",
+    guestRows.join("\n"),
+    "",
+    "Department Usage Summary",
+    departmentRows.join("\n"),
+  ].join("\n");
 
   res.setHeader("Content-Type", "text/csv");
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename="guest-visits-${year}.csv"`
+    `attachment; filename="guest-and-department-report-${year}.csv"`
   );
   res.send(csv);
 });
