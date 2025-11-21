@@ -1,10 +1,12 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Quicksand:wght@500;600&display=swap");
+
 :root {
   font-family: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system,
     sans-serif;
   line-height: 1.6;
   font-weight: 500;
   color: #0f172a;
-  background-color: #eef2f7;
+  background-color: #f5f9ff;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -18,8 +20,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-    background: radial-gradient(circle at 20% 20%, #f7fbff 0, #eef2f7 40%),
-    linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    background: radial-gradient(circle at 20% 20%, #f8fbff 0, #e7f1ff 38%),
+    linear-gradient(135deg, #edf4ff 0%, #f6fbff 100%);
   color: #0f172a;
 }
 

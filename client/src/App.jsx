@@ -1653,10 +1653,11 @@ function App() {
         padding: "2rem 1.5rem",
         maxWidth: "1200px",
         margin: "0 auto",
-        background: "rgba(255, 255, 255, 0.82)",
+        background:
+          "linear-gradient(145deg, rgba(241, 247, 255, 0.95), rgba(248, 252, 255, 0.95))",
         borderRadius: "28px",
-        boxShadow: "0 24px 70px rgba(15, 23, 42, 0.12)",
-        border: "1px solid #e5e7eb",
+        boxShadow: "0 24px 70px rgba(12, 57, 145, 0.12)",
+        border: "1px solid #dbe8ff",
         backdropFilter: "blur(10px)",
       }}
     >
@@ -1671,7 +1672,23 @@ function App() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0 }}>The Valley Club — Guest Check-In</h1>
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: '"Playfair Display", "Quicksand", "Inter", serif',
+              letterSpacing: "0.03em",
+              fontWeight: 700,
+              fontSize: "2.4rem",
+              background:
+                "linear-gradient(120deg, #0f3c99 0%, #3f6ccf 48%, #8fb5ff 100%)",
+              color: "transparent",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              textShadow: "0 12px 26px rgba(15, 60, 153, 0.16)",
+            }}
+          >
+            The Valley Club — Guest Check-In
+          </h1>
           <p style={{ color: "#555", marginTop: "0.25rem" }}>
             Staff tool for recording daily guest visits and tracking yearly limits.
           </p>
