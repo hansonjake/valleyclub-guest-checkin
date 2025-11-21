@@ -24,6 +24,7 @@ import {
   getDeletedGuests,
   createVisit,
   addDepartmentToVisit,
+  getWatchlistGuests,
 } from "./dataStore.js";
 
 dotenv.config();
@@ -180,6 +181,24 @@ app.get("/api/visits-today", (req, res) => {
     });
 
   res.json({ date: dateStr, visits: visitsWithGuests });
+});
+
+// -----------------------------
+// /api/watchlist - guests at or above the threshold (default 7 visits this year)
+// -----------------------------
+app.get("/api/watchlist", (req, res) => {
+  const threshold = Number(req.query.threshold) || 7;
+  const watchlist = getWatchlistGuests(threshold).map(
+    ({ guest, visitsThisYear, lastVisitDate }) => ({
+      id: guest.id,
+      firstName: guest.firstName,
+      lastName: guest.lastName,
+      visitsThisYear,
+      lastVisitDate,
+    })
+  );
+
+  res.json({ threshold, guests: watchlist });
 });
 
 // -----------------------------

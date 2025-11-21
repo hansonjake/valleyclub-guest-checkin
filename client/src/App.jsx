@@ -48,10 +48,15 @@ function App() {
   const [pendingCheckinName, setPendingCheckinName] = useState(null); // { firstName, lastName }
   const [showSuggestionBox, setShowSuggestionBox] = useState(false);
 
-    // ----- Today's activity state -----
+  // ----- Today's activity state -----
   const [todayVisits, setTodayVisits] = useState([]);
   const [todayVisitsLoading, setTodayVisitsLoading] = useState(false);
   const [todayVisitsError, setTodayVisitsError] = useState("");
+
+    // ----- Watch list state -----
+  const [watchListGuests, setWatchListGuests] = useState([]);
+  const [watchListLoading, setWatchListLoading] = useState(false);
+  const [watchListError, setWatchListError] = useState("");
 
   // ----- Lookup & history state -----
   const [lookupQuery, setLookupQuery] = useState("");
@@ -129,9 +134,36 @@ function App() {
     }
   };
 
+    const loadWatchList = async () => {
+    setWatchListLoading(true);
+    setWatchListError("");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/watchlist`);
+      const data = await res.json();
+      if (!res.ok) {
+        setWatchListError(data.error || "Failed to load watch list.");
+        setWatchListGuests([]);
+        return;
+      }
+
+      setWatchListGuests(data.guests || []);
+    } catch (err) {
+      console.error("Error loading watch list:", err);
+      setWatchListError("Network error loading watch list.");
+      setWatchListGuests([]);
+    } finally {
+      setWatchListLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadTodayVisits();
-    const interval = setInterval(loadTodayVisits, 60 * 1000);
+    loadWatchList();
+    const interval = setInterval(() => {
+      loadTodayVisits();
+      loadWatchList();
+    }, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -176,6 +208,7 @@ function App() {
       setVisitStats(data.stats || null);
 
       await loadTodayVisits();
+      await loadWatchList();
 
       // After successful check-in, reload visits if we have that guest selected
       if (selectedGuest && data.guest && selectedGuest.id === data.guest.id) {
@@ -344,6 +377,7 @@ function App() {
       }
       await loadVisitSummary(selectedGuest.id);
       await loadTodayVisits();
+      await loadWatchList();
     } catch (err) {
       console.error("Error deleting visit:", err);
       alert("Network error removing visit.");
@@ -877,167 +911,289 @@ function App() {
         </section>
 
         {/* RIGHT: can be debug, instructions, etc. For now, simple info */}
-        <section
-          style={{
-            padding: "1rem 1.25rem",
-            borderRadius: "10px",
-            border: "1px solid #ddd",
-            background: "white",
-          }}
-        >
-          <div
+        <div style={{ display: "grid", gap: "1rem" }}>
+          <section
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "0.75rem",
-              flexWrap: "wrap",
+              padding: "1rem 1.25rem",
+              borderRadius: "10px",
+              border: "1px solid #f4c430",
+              background: "#fffaf0",
+              boxShadow: "0 10px 24px rgba(244, 196, 48, 0.2)",
             }}
           >
-            <h2 style={{ marginTop: 0, marginBottom: 0 }}>Today's Activity</h2>
-            <span
-              style={{
-                background: "linear-gradient(120deg, #e0f2fe, #e6e9ff)",
-                color: "#0f2c60",
-                borderRadius: "999px",
-                padding: "0.35rem 0.9rem",
-                fontWeight: 700,
-                fontSize: "0.9rem",
-                boxShadow: "0 10px 24px rgba(15, 44, 96, 0.18)",
-              }}
-            >
-              {todayVisits.length} check-in{todayVisits.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          <p style={{ marginTop: "0.5rem", color: "#444" }}>
-            Quick view of guests who have checked in today (newest first).
-          </p>
-
-          {todayVisitsError && (
             <div
               style={{
-                background: "#fff4f4",
-                border: "1px solid #f2c4c4",
-                color: "#8a1f1f",
-                padding: "0.75rem",
-                borderRadius: "8px",
-                marginBottom: "0.75rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                flexWrap: "wrap",
               }}
             >
-              {todayVisitsError}
+              <h2 style={{ marginTop: 0, marginBottom: 0 }}>Watch List</h2>
+              <span
+                style={{
+                  background: "#fff3cd",
+                  color: "#856404",
+                  borderRadius: "999px",
+                  padding: "0.35rem 0.9rem",
+                  fontWeight: 700,
+                  fontSize: "0.9rem",
+                  boxShadow: "0 10px 24px rgba(133, 100, 4, 0.14)",
+                }}
+              >
+                {watchListGuests.length} guest
+                {watchListGuests.length === 1 ? "" : "s"}
+              </span>
             </div>
-          )}
-
-          {todayVisitsLoading ? (
-            <p style={{ marginTop: "0.5rem", color: "#333" }}>
-              Loading today's check-ins...
+            <p style={{ marginTop: "0.5rem", color: "#5c4c1d" }}>
+              Guests who have reached 7 or more visits this year.
             </p>
-          ) : todayVisits.length === 0 ? (
-            <p style={{ marginTop: "0.5rem", color: "#333" }}>
-              No guests have checked in yet today.
-            </p>
-          ) : (
-            <div style={{ display: "grid", gap: "0.65rem" }}>
-              {todayVisits.map((visit) => {
-                const departmentLabels = Array.from(
-                  new Set((visit.departments || []).map((d) => d.department))
-                );
-                const departmentBadges =
-                  departmentLabels.length > 0
-                    ? departmentLabels
-                    : visit.firstDepartment
-                      ? [visit.firstDepartment]
-                      : [];
-                const visitTime = visit.createdAt
-                  ? new Date(visit.createdAt).toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })
-                  : "";
 
-                return (
-                  <div
-                    key={visit.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "10px",
-                      padding: "0.65rem 0.75rem",
-                      background: "#f9fafb",
-                    }}
-                  >
+            {watchListError && (
+              <div
+                style={{
+                  background: "#fff4f4",
+                  border: "1px solid #f2c4c4",
+                  color: "#8a1f1f",
+                  padding: "0.75rem",
+                  borderRadius: "8px",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                {watchListError}
+              </div>
+            )}
+
+            {watchListLoading ? (
+              <p style={{ marginTop: "0.5rem", color: "#4a3b0f" }}>
+                Loading watch list...
+              </p>
+            ) : watchListGuests.length === 0 ? (
+              <p style={{ marginTop: "0.5rem", color: "#4a3b0f" }}>
+                No guests are on the watch list yet.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: "0.65rem" }}>
+                {watchListGuests.map((guest) => {
+                  const lastVisitLabel = guest.lastVisitDate
+                    ? new Date(`${guest.lastVisitDate}T12:00:00`).toLocaleDateString()
+                    : "—";
+
+                  return (
                     <div
+                      key={guest.id}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "0.5rem",
-                        marginBottom: "0.25rem",
-                        flexWrap: "wrap",
+                        border: "1px solid #f6d365",
+                        borderRadius: "10px",
+                        padding: "0.65rem 0.75rem",
+                        background: "#fffdf5",
                       }}
                     >
-                      <div style={{ fontWeight: 700, fontSize: "1rem" }}>
-                        {visit.firstName} {visit.lastName}
-                      </div>
-                      {visitTime && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "0.5rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, fontSize: "1rem" }}>
+                          {guest.firstName} {guest.lastName}
+                        </div>
                         <span
                           style={{
                             fontSize: "0.85rem",
-                            color: "#333",
-                            background: "#eef2ff",
+                            color: "#5c4c1d",
+                            background: "#ffe8a3",
                             borderRadius: "999px",
                             padding: "0.2rem 0.6rem",
+                            fontWeight: 700,
                           }}
                         >
-                          {visitTime}
+                          {guest.visitsThisYear} visit
+                          {guest.visitsThisYear === 1 ? "" : "s"} this year
                         </span>
-                      )}
+                      </div>
+                      <p
+                        style={{
+                          margin: "0.35rem 0 0",
+                          color: "#5c4c1d",
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        Last visit: {lastVisitLabel}
+                      </p>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
 
+          <section
+            style={{
+              padding: "1rem 1.25rem",
+              borderRadius: "10px",
+              border: "1px solid #ddd",
+              background: "white",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <h2 style={{ marginTop: 0, marginBottom: 0 }}>Today's Activity</h2>
+              <span
+                style={{
+                  background: "linear-gradient(120deg, #e0f2fe, #e6e9ff)",
+                  color: "#0f2c60",
+                  borderRadius: "999px",
+                  padding: "0.35rem 0.9rem",
+                  fontWeight: 700,
+                  fontSize: "0.9rem",
+                  boxShadow: "0 10px 24px rgba(15, 44, 96, 0.18)",
+                }}
+              >
+                {todayVisits.length} check-in{todayVisits.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <p style={{ marginTop: "0.5rem", color: "#444" }}>
+              Quick view of guests who have checked in today (newest first).
+            </p>
+
+                        {todayVisitsError && (
+              <div
+                style={{
+                  background: "#fff4f4",
+                  border: "1px solid #f2c4c4",
+                  color: "#8a1f1f",
+                  padding: "0.75rem",
+                  borderRadius: "8px",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                {todayVisitsError}
+              </div>
+            )}
+
+            {todayVisitsLoading ? (
+              <p style={{ marginTop: "0.5rem", color: "#333" }}>
+                Loading today's check-ins...
+              </p>
+            ) : todayVisits.length === 0 ? (
+              <p style={{ marginTop: "0.5rem", color: "#333" }}>
+                No guests have checked in yet today.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: "0.65rem" }}>
+                {todayVisits.map((visit) => {
+                  const departmentLabels = Array.from(
+                    new Set((visit.departments || []).map((d) => d.department))
+                  );
+                  const departmentBadges =
+                    departmentLabels.length > 0
+                      ? departmentLabels
+                      : visit.firstDepartment
+                        ? [visit.firstDepartment]
+                        : [];
+                  const visitTime = visit.createdAt
+                    ? new Date(visit.createdAt).toLocaleTimeString([], {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })
+                    : "";
+
+                  return (
                     <div
+                      key={visit.id}
                       style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "0.4rem",
-                        marginTop: "0.35rem",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "10px",
+                        padding: "0.65rem 0.75rem",
+                        background: "#f9fafb",
                       }}
                     >
-                      {visit.campus && (
-                        <span
-                          style={{
-                            background: "#e7f2ff",
-                            color: "#0f3c99",
-                            borderRadius: "999px",
-                            padding: "0.2rem 0.6rem",
-                            fontSize: "0.82rem",
-                            border: "1px solid #cddcf7",
-                          }}
-                        >
-                          {visit.campus}
-                        </span>
-                      )}
-                      {departmentBadges.map((dept) => (
-                        <span
-                          key={dept}
-                          style={{
-                            background: "#e7f2ff",
-                            color: "#0f3c99",
-                            borderRadius: "999px",
-                            padding: "0.2rem 0.6rem",
-                            fontSize: "0.82rem",
-                            border: "1px solid #cddcf7",
-                          }}
-                        >
-                          {dept}
-                        </span>
-                      ))}
-                    </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "0.5rem",
+                          marginBottom: "0.25rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, fontSize: "1rem" }}>
+                          {visit.firstName} {visit.lastName}
+                        </div>
+                        {visitTime && (
+                          <span
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "#333",
+                              background: "#eef2ff",
+                              borderRadius: "999px",
+                              padding: "0.2rem 0.6rem",
+                            }}
+                          >
+                            {visitTime}
+                          </span>
+                        )}
+                      </div>
 
-                  </div>
-                );
-              })}
-            </div>
-          )}  
-        </section>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "0.4rem",
+                          marginTop: "0.35rem",
+                        }}
+                      >
+                        {visit.campus && (
+                          <span
+                            style={{
+                              background: "#e7f2ff",
+                              color: "#0f3c99",
+                              borderRadius: "999px",
+                              padding: "0.2rem 0.6rem",
+                              fontSize: "0.82rem",
+                              border: "1px solid #cddcf7",
+                            }}
+                          >
+                            {visit.campus}
+                          </span>
+                        )}
+                        {departmentBadges.map((dept) => (
+                          <span
+                            key={dept}
+                            style={{
+                              background: "#e7f2ff",
+                              color: "#0f3c99",
+                              borderRadius: "999px",
+                              padding: "0.2rem 0.6rem",
+                              fontSize: "0.82rem",
+                              border: "1px solid #cddcf7",
+                            }}
+                          >
+                            {dept}
+                          </span>
+                        ))}
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     );
   };

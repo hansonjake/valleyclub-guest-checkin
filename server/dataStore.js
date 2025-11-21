@@ -347,6 +347,33 @@ export function getGuestVisitsSummary(guestId) {
   };
 }
 
+export function getWatchlistGuests(threshold = 7) {
+  const activeGuests = guests.filter((g) => !g.isDeleted);
+
+  const results = activeGuests
+    .map((guest) => {
+      const summary = getGuestVisitsSummary(guest.id);
+      const visitsThisYear = summary?.totalYearVisits ?? 0;
+      const lastVisitDate = summary?.visits?.length
+        ? summary.visits[summary.visits.length - 1].date
+        : "";
+
+      return { guest, visitsThisYear, lastVisitDate };
+    })
+    .filter((entry) => entry.visitsThisYear >= threshold)
+    .sort((a, b) => {
+      if (b.visitsThisYear !== a.visitsThisYear) {
+        return b.visitsThisYear - a.visitsThisYear;
+      }
+
+      const nameA = `${a.guest.lastName || ""} ${a.guest.firstName || ""}`.toLowerCase();
+      const nameB = `${b.guest.lastName || ""} ${b.guest.firstName || ""}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+  return results;
+}
+
 // -------- Simple search (for lookup) --------
 export function searchGuests(query) {
   const q = query.trim().toLowerCase();
