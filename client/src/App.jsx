@@ -495,9 +495,10 @@ function App() {
         style={{
           marginTop: "0.75rem",
           padding: "0.75rem 1rem",
-          borderRadius: "10px",
-          background: "#fffaf0",
-          border: "1px solid #e0b200",
+          borderRadius: "14px",
+          background: "linear-gradient(135deg, #f5f7ff, #eef2ff)",
+          border: "1px solid #d7defc",
+          boxShadow: "0 16px 38px rgba(27, 51, 122, 0.12)",
         }}
       >
         <p
@@ -505,7 +506,7 @@ function App() {
             marginTop: 0,
             marginBottom: "0.5rem",
             fontWeight: 600,
-            color: "#805200",
+            color: "#1f2a4d",
           }}
         >
           Possible match found for “{fn} {ln}”.
@@ -896,12 +897,13 @@ function App() {
             <h2 style={{ marginTop: 0, marginBottom: 0 }}>Today's Activity</h2>
             <span
               style={{
-                background: "#eef4ff",
-                color: "#163572",
+                background: "linear-gradient(120deg, #e0f2fe, #e6e9ff)",
+                color: "#0f2c60",
                 borderRadius: "999px",
-                padding: "0.25rem 0.75rem",
+                padding: "0.35rem 0.9rem",
                 fontWeight: 700,
                 fontSize: "0.9rem",
+                boxShadow: "0 10px 24px rgba(15, 44, 96, 0.18)",
               }}
             >
               {todayVisits.length} check-in{todayVisits.length === 1 ? "" : "s"}
@@ -1475,10 +1477,15 @@ function App() {
   return (
     <div
       style={{
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        padding: "1.5rem",
+        fontFamily: "Inter, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif",
+        padding: "2rem 1.5rem",
         maxWidth: "1200px",
         margin: "0 auto",
+        background: "rgba(255, 255, 255, 0.82)",
+        borderRadius: "28px",
+        boxShadow: "0 24px 70px rgba(15, 23, 42, 0.12)",
+        border: "1px solid #e5e7eb",
+        backdropFilter: "blur(10px)",
       }}
     >
       <header
@@ -1509,10 +1516,11 @@ function App() {
           <div
             style={{
               padding: "0.75rem 1rem",
-              borderRadius: "10px",
-              border: "1px solid #dbe4ff",
-              background: "#f3f7ff",
+              borderRadius: "16px",
+              border: "1px solid #d6e4ff",
+              background: "linear-gradient(135deg, #eef4ff, #f7fbff)",
               minWidth: "240px",
+              boxShadow: "0 18px 45px rgba(27, 51, 122, 0.12)",
             }}
           >
             <div
@@ -1564,9 +1572,12 @@ function App() {
         style={{
           display: "inline-flex",
           borderRadius: "999px",
-          border: "1px solid #ccc",
+          border: "1px solid #d0d7e7",
+          background: "#f7f9fc",
+          boxShadow: "0 10px 28px rgba(15, 23, 42, 0.08)",
           overflow: "hidden",
           marginBottom: "1.25rem",
+          padding: "0.2rem",
         }}
       >
         <button
@@ -1575,10 +1586,16 @@ function App() {
           style={{
             padding: "0.5rem 1.5rem",
             border: "none",
-            background: activeTab === "checkin" ? "#006400" : "transparent",
-            color: activeTab === "checkin" ? "white" : "#333",
+            background: activeTab === "checkin" ? "#0f766e" : "transparent",
+            color: activeTab === "checkin" ? "white" : "#0f172a",
             fontWeight: 600,
             cursor: "pointer",
+            borderRadius: "999px",
+            transition: "all 0.2s ease",
+            boxShadow:
+              activeTab === "checkin"
+                ? "0 12px 28px rgba(15, 118, 110, 0.25)"
+                : "none",
           }}
         >
           Check-In
@@ -1589,10 +1606,16 @@ function App() {
           style={{
             padding: "0.5rem 1.5rem",
             border: "none",
-            background: activeTab === "lookup" ? "#006400" : "transparent",
-            color: activeTab === "lookup" ? "white" : "#333",
+            background: activeTab === "lookup" ? "#0f766e" : "transparent",
+            color: activeTab === "lookup" ? "white" : "#0f172a",
             fontWeight: 600,
             cursor: "pointer",
+            borderRadius: "999px",
+            transition: "all 0.2s ease",
+            boxShadow:
+              activeTab === "lookup"
+                ? "0 12px 28px rgba(15, 118, 110, 0.25)"
+                : "none",
           }}
         >
           Guest Lookup
@@ -1603,10 +1626,16 @@ function App() {
           style={{
             padding: "0.5rem 1.5rem",
             border: "none",
-            background: activeTab === "deleted" ? "#006400" : "transparent",
-            color: activeTab === "deleted" ? "white" : "#333",
+            background: activeTab === "deleted" ? "#0f766e" : "transparent",
+            color: activeTab === "deleted" ? "white" : "#0f172a",
             fontWeight: 600,
             cursor: "pointer",
+            borderRadius: "999px",
+            transition: "all 0.2s ease",
+            boxShadow:
+              activeTab === "deleted"
+                ? "0 12px 28px rgba(15, 118, 110, 0.25)"
+                : "none",
           }}
         >
           Deleted Guests
