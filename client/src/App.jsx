@@ -942,6 +942,12 @@ function App() {
                 const departmentLabels = Array.from(
                   new Set((visit.departments || []).map((d) => d.department))
                 );
+                const departmentBadges =
+                  departmentLabels.length > 0
+                    ? departmentLabels
+                    : visit.firstDepartment
+                      ? [visit.firstDepartment]
+                      : [];
                 const visitTime = visit.createdAt
                   ? new Date(visit.createdAt).toLocaleTimeString([], {
                       hour: "numeric",
@@ -987,35 +993,45 @@ function App() {
                       )}
                     </div>
 
-                    <div style={{ color: "#444", fontSize: "0.9rem" }}>
-                      {visit.campus} • {visit.firstDepartment}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.4rem",
+                        marginTop: "0.35rem",
+                      }}
+                    >
+                      {visit.campus && (
+                        <span
+                          style={{
+                            background: "#e7f2ff",
+                            color: "#0f3c99",
+                            borderRadius: "999px",
+                            padding: "0.2rem 0.6rem",
+                            fontSize: "0.82rem",
+                            border: "1px solid #cddcf7",
+                          }}
+                        >
+                          {visit.campus}
+                        </span>
+                      )}
+                      {departmentBadges.map((dept) => (
+                        <span
+                          key={dept}
+                          style={{
+                            background: "#e7f2ff",
+                            color: "#0f3c99",
+                            borderRadius: "999px",
+                            padding: "0.2rem 0.6rem",
+                            fontSize: "0.82rem",
+                            border: "1px solid #cddcf7",
+                          }}
+                        >
+                          {dept}
+                        </span>
+                      ))}
                     </div>
-                    {departmentLabels.length > 1 && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "0.4rem",
-                          marginTop: "0.35rem",
-                        }}
-                      >
-                        {departmentLabels.map((dept) => (
-                          <span
-                            key={dept}
-                            style={{
-                              background: "#e7f2ff",
-                              color: "#0f3c99",
-                              borderRadius: "999px",
-                              padding: "0.2rem 0.6rem",
-                              fontSize: "0.82rem",
-                              border: "1px solid #cddcf7",
-                            }}
-                          >
-                            {dept}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+
                   </div>
                 );
               })}
