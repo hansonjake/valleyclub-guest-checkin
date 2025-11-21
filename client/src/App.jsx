@@ -806,6 +806,20 @@ function App() {
   const renderCheckinTab = () => {
     const todayStr = getLocalDateString();
     const campusDepartments = CAMPUS_DEPARTMENTS[campus] || [];
+    const bubbleButtonStyle = (selected) => ({
+      padding: "0.5rem 0.9rem",
+      borderRadius: "999px",
+      border: selected ? "1px solid #4f46e5" : "1px solid #d9dce8",
+      background: selected
+        ? "linear-gradient(135deg, #eef2ff, #e0e7ff)"
+        : "#f8f9fc",
+      color: selected ? "#312e81" : "#374151",
+      fontWeight: 600,
+      fontSize: "0.9rem",
+      boxShadow: selected ? "0 6px 18px rgba(79, 70, 229, 0.18)" : "none",
+      cursor: "pointer",
+      transition: "all 0.18s ease",
+    });
 
     const buttonDisabled =
       checkinLoading ||
@@ -827,10 +841,11 @@ function App() {
         {/* LEFT: form */}
         <section
           style={{
-            padding: "1rem 1.25rem",
-            borderRadius: "10px",
-            border: "1px solid #ddd",
-            background: "#fafafa",
+            padding: "1.35rem 1.5rem",
+            borderRadius: "16px",
+            border: "1px solid #e6e9f5",
+            background: "linear-gradient(145deg, #ffffff, #f6f7fb)",
+            boxShadow: "0 18px 45px rgba(15, 23, 42, 0.08)",
           }}
         >
           <h2 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
@@ -850,53 +865,69 @@ function App() {
           </p>
 
           {/* Campus */}
-          <div style={{ marginBottom: "0.75rem" }}>
+          <div style={{ marginBottom: "0.85rem" }}>
             <label
               style={{ fontWeight: 600, display: "block", marginBottom: "0.25rem" }}
             >
               Campus <span style={{ color: "red" }}>*</span>
             </label>
-            <select
-              value={campus}
-              onChange={(e) => setCampus(e.target.value)}
+            <div
               style={{
-                width: "100%",
-                padding: "0.4rem 0.6rem",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
+                display: "flex",
+                gap: "0.6rem",
+                flexWrap: "wrap",
               }}
             >
-              {CAMPUSES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              {CAMPUSES.map((c) => {
+                const selected = campus === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setCampus(c);
+                      const available = CAMPUS_DEPARTMENTS[c];
+                      if (!available.includes(department)) {
+                        setDepartment(available[0]);
+                      }
+                    }}
+                    style={bubbleButtonStyle(selected)}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Department */}
-          <div style={{ marginBottom: "0.75rem" }}>
+          <div style={{ marginBottom: "0.85rem" }}>
             <label
               style={{ fontWeight: 600, display: "block", marginBottom: "0.25rem" }}
             >
               Department <span style={{ color: "red" }}>*</span>
             </label>
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+            <div
               style={{
-                width: "100%",
-                padding: "0.4rem 0.6rem",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
+                display: "flex",
+                gap: "0.6rem",
+                flexWrap: "wrap",
               }}
             >
-              {campusDepartments.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+              {campusDepartments.map((d) => {
+                const selected = department === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDepartment(d)}
+                    style={bubbleButtonStyle(selected)}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Visit date */}
