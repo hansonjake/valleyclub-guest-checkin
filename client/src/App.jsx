@@ -38,6 +38,7 @@ function App() {
   const [email, setEmail] = useState("");
 
   const [checkinLoading, setCheckinLoading] = useState(false);
+  const [linkedGuestId, setLinkedGuestId] = useState(null); // Guest currently powering check-in form
   const [checkinStatus, setCheckinStatus] = useState(null); // "checked-in" | "already-checked-in-today" | "blocked" | null
   const [checkinMessage, setCheckinMessage] = useState("");
   const [checkinError, setCheckinError] = useState("");
@@ -187,15 +188,19 @@ function App() {
   // -----------------------------
   // Check-in helpers
   // -----------------------------
-  const performCheckin = async ({ guestIdOverride = null }) => {
+  const performCheckin = async ({
+    guestIdOverride = null,
+    overridePhone = null,
+    overrideEmail = null,
+  }) => {
     setCheckinError("");
     setCheckinMessage("");
     setCheckinStatus(null);
     setVisitStats(null);
     setRecentCheckin(null);
 
-    const trimmedPhone = phoneNumber.trim();
-    const trimmedEmail = email.trim();
+    const trimmedPhone = (overridePhone ?? phoneNumber).trim();
+    const trimmedEmail = (overrideEmail ?? email).trim();
 
     if (!firstName.trim() || !lastName.trim()) {
       setCheckinError("First and last name are required.");
@@ -240,6 +245,16 @@ function App() {
         message: data.message,
       });
 
+            if (data.guest) {
+        setFirstName(data.guest.firstName || firstName);
+        setLastName(data.guest.lastName || lastName);
+        setPhoneNumber(data.guest.phoneNumber || "");
+        setEmail(data.guest.email || "");
+        setSelectedGuest(data.guest);
+        populateEditFieldsFromGuest(data.guest);
+        setLinkedGuestId(data.guest.id || null);
+      }
+
       await loadTodayVisits();
       await loadWatchList();
 
@@ -267,6 +282,7 @@ function App() {
     setNameSuggestions([]);
     setExactSuggestion(null);
     setPendingCheckinName(null);
+    setLinkedGuestId(null);
 
     const fn = firstName.trim();
     const ln = lastName.trim();
@@ -275,10 +291,6 @@ function App() {
 
     if (!fn || !ln) {
       setCheckinError("First and last name are required.");
-      return;
-    }
-    if (!trimmedPhone || !trimmedEmail) {
-      setCheckinError("Phone number and email are required.");
       return;
     }
 
@@ -311,6 +323,12 @@ function App() {
 
       // If nothing at all, just check in as a new guest
       if (!exactMatch && cleanedSimilar.length === 0) {
+        if (!trimmedPhone || !trimmedEmail) {
+          setCheckinError("Phone number and email are required.");
+          setSuggestionsLoading(false);
+          return;
+        }
+
         setSuggestionsLoading(false);
         await performCheckin({ guestIdOverride: null });
         return;
@@ -330,10 +348,21 @@ function App() {
   };
 
   const handleChooseExistingGuest = async (guest) => {
-    await performCheckin({ guestIdOverride: guest.id });
+    setPhoneNumber(guest.phoneNumber || "");
+    setEmail(guest.email || "");
+    setSelectedGuest(guest);
+    populateEditFieldsFromGuest(guest);
+    setLinkedGuestId(guest.id || null);
+
+    await performCheckin({
+      guestIdOverride: guest.id,
+      overridePhone: guest.phoneNumber || "",
+      overrideEmail: guest.email || "",
+    });
   };
 
   const handleCreateNewGuestFromSuggestion = async () => {
+    setLinkedGuestId(null);
     await performCheckin({ guestIdOverride: null });
   };
 
@@ -660,6 +689,14 @@ function App() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!selectedGuest || !linkedGuestId) return;
+    if (selectedGuest.id !== linkedGuestId) return;
+
+    setEditPhoneNumber(phoneNumber);
+    setEditEmail(email);
+  }, [email, phoneNumber, selectedGuest, linkedGuestId]);
+
   // -----------------------------
   // Rendering helpers
   // -----------------------------
@@ -953,8 +990,6 @@ function App() {
       suggestionsLoading ||
       !firstName.trim() ||
       !lastName.trim() ||
-      !phoneNumber.trim() ||
-      !email.trim() ||
       !department ||
       !campus ||
       !visitDate;
