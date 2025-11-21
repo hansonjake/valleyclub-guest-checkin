@@ -106,10 +106,13 @@ function App() {
   // Today's activity
   // -----------------------------
   const loadTodayVisits = async () => {
+    const todayStr = getLocalDateString();
     setTodayVisitsLoading(true);
     setTodayVisitsError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/visits-today`);
+      const res = await fetch(
+        `${API_BASE_URL}/api/visits-today?date=${encodeURIComponent(todayStr)}`
+      );
       const data = await res.json();
       if (!res.ok) {
         setTodayVisitsError(data.error || "Failed to load today's activity.");
