@@ -121,6 +121,50 @@ export function findGuestByExactName(firstName, lastName) {
 }
 
 // Simple similarity check for “similar name”
+function isOneEditAway(a, b) {
+  const la = normalizeNameLower(a);
+  const lb = normalizeNameLower(b);
+
+  if (la === lb) return true;
+
+  const lenDiff = Math.abs(la.length - lb.length);
+  if (lenDiff > 1) return false;
+
+  // Two-pointer walk to allow a single insert/delete/substitution
+  let edits = 0;
+  let i = 0;
+  let j = 0;
+  while (i < la.length && j < lb.length) {
+    if (la[i] === lb[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+
+    edits += 1;
+    if (edits > 1) return false;
+
+    if (la.length > lb.length) {
+      i += 1; // deletion from la
+    } else if (lb.length > la.length) {
+      j += 1; // insertion into la
+    } else {
+      i += 1;
+      j += 1; // substitution
+    }
+  }
+
+  // Account for trailing extra character
+  if (i < la.length || j < lb.length) edits += 1;
+
+  return edits <= 1;
+}
+
+function lastNamesAreSimilar(lastA, lastB) {
+  // Allow exact match or a single-character edit (e.g., Carley vs Carly)
+  return isOneEditAway(lastA, lastB);
+}
+
 function namesAreSimilar(firstA, lastA, firstB, lastB) {
   const fa = normalizeNameLower(firstA);
   const fb = normalizeNameLower(firstB);
@@ -129,8 +173,8 @@ function namesAreSimilar(firstA, lastA, firstB, lastB) {
 
   if (!fa || !fb || !la || !lb) return false;
 
-  // Last name must match exactly
-  if (la !== lb) return false;
+  // Last name must be very close (exact or one edit away)
+  if (!lastNamesAreSimilar(la, lb)) return false;
 
   // First names:
   // - exact match OR
