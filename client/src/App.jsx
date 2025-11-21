@@ -348,16 +348,19 @@ function App() {
   };
 
   const handleChooseExistingGuest = async (guest) => {
-    setPhoneNumber(guest.phoneNumber || "");
-    setEmail(guest.email || "");
+    const fallbackPhone = guest.phoneNumber || phoneNumber;
+    const fallbackEmail = guest.email || email;
+
+    setPhoneNumber(fallbackPhone);
+    setEmail(fallbackEmail);
     setSelectedGuest(guest);
     populateEditFieldsFromGuest(guest);
     setLinkedGuestId(guest.id || null);
 
     await performCheckin({
       guestIdOverride: guest.id,
-      overridePhone: guest.phoneNumber || "",
-      overrideEmail: guest.email || "",
+      overridePhone: fallbackPhone,
+      overrideEmail: fallbackEmail,
     });
   };
 
