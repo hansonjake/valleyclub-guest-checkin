@@ -48,7 +48,10 @@ loadData();
 
 // -------- Utility --------
 export function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const now = new Date();
+  const offsetMinutes = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offsetMinutes * 60 * 1000);
+  return localDate.toISOString().slice(0, 10); // YYYY-MM-DD in local time
 }
 
 function normalizeName(name) {
