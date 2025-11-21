@@ -51,6 +51,7 @@ function App() {
   const [exactSuggestion, setExactSuggestion] = useState(null);
   const [pendingCheckinName, setPendingCheckinName] = useState(null); // { firstName, lastName }
   const [showSuggestionBox, setShowSuggestionBox] = useState(false);
+  const [suggestionsReviewed, setSuggestionsReviewed] = useState(false);
 
   // ----- Today's activity state -----
   const [todayVisits, setTodayVisits] = useState([]);
@@ -185,6 +186,15 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+    useEffect(() => {
+    setSuggestionsReviewed(false);
+    setShowSuggestionBox(false);
+    setNameSuggestions([]);
+    setExactSuggestion(null);
+    setPendingCheckinName(null);
+    setLinkedGuestId(null);
+  }, [firstName, lastName]);
+
   // -----------------------------
   // Check-in helpers
   // -----------------------------
@@ -281,11 +291,6 @@ function App() {
   const handleCheckinClick = async () => {
     resetCheckinMessages();
     setCheckinError("");
-    setShowSuggestionBox(false);
-    setNameSuggestions([]);
-    setExactSuggestion(null);
-    setPendingCheckinName(null);
-    setLinkedGuestId(null);
 
     const fn = firstName.trim();
     const ln = lastName.trim();
@@ -294,6 +299,18 @@ function App() {
 
     if (!fn || !ln) {
       setCheckinError("First and last name are required.");
+      return;
+    }
+
+    if (showSuggestionBox) {
+      setCheckinError(
+        "Select an existing guest or choose to create a new one to continue."
+      );
+      return;
+    }
+
+    if (suggestionsReviewed) {
+      await performCheckin({ guestIdOverride: linkedGuestId });
       return;
     }
 
@@ -332,6 +349,7 @@ function App() {
           return;
         }
 
+        setSuggestionsReviewed(true);
         setSuggestionsLoading(false);
         await performCheckin({ guestIdOverride: null });
         return;
@@ -360,16 +378,26 @@ function App() {
     populateEditFieldsFromGuest(guest);
     setLinkedGuestId(guest.id || null);
 
-    await performCheckin({
-      guestIdOverride: guest.id,
-      overridePhone: fallbackPhone,
-      overrideEmail: fallbackEmail,
-    });
+    setCheckinMessage(
+      "Loaded existing guest details. Confirm contact info and click Check In."
+    );
+    setShowSuggestionBox(false);
+    setNameSuggestions([]);
+    setExactSuggestion(null);
+    setPendingCheckinName(null);
+    setSuggestionsReviewed(true);
   };
 
   const handleCreateNewGuestFromSuggestion = async () => {
     setLinkedGuestId(null);
-    await performCheckin({ guestIdOverride: null });
+    setSuggestionsReviewed(true);
+    setShowSuggestionBox(false);
+    setNameSuggestions([]);
+    setExactSuggestion(null);
+    setPendingCheckinName(null);
+    setCheckinMessage(
+      "Creating a new guest. Please enter phone and email, then click Check In."
+    );
   };
 
   // -----------------------------
