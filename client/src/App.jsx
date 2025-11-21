@@ -2,7 +2,11 @@
 import { useEffect, useState } from "react";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+  (import.meta.env.VITE_API_BASE_URL &&
+    import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")) ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? window.location.origin
+    : "http://localhost:5001");
 
 const DEPARTMENTS = [
   "Golf Round",
