@@ -245,15 +245,18 @@ function App() {
         message: data.message,
       });
 
-            if (data.guest) {
-        setFirstName(data.guest.firstName || firstName);
-        setLastName(data.guest.lastName || lastName);
-        setPhoneNumber(data.guest.phoneNumber || "");
-        setEmail(data.guest.email || "");
+      if (data.guest) {
         setSelectedGuest(data.guest);
         populateEditFieldsFromGuest(data.guest);
         setLinkedGuestId(data.guest.id || null);
       }
+
+      // Clear the form so the next guest can start fresh while keeping
+      // the latest check-in summary visible below.
+      setFirstName("");
+      setLastName("");
+      setPhoneNumber("");
+      setEmail("");
 
       await loadTodayVisits();
       await loadWatchList();
