@@ -1,5 +1,5 @@
 // client/src/App.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL &&
@@ -15,6 +15,101 @@ const CAMPUS_DEPARTMENTS = {
 
 const CAMPUSES = Object.keys(CAMPUS_DEPARTMENTS);
 const LAST_NAME_INITIALS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+const normalizeHeaderKey = (key) =>
+  String(key || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const parseDelimitedLine = (line, delimiter) => {
+  const cells = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (char === "\"") {
+      const nextChar = line[i + 1];
+      if (nextChar === "\"") {
+        current += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      cells.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  cells.push(current);
+  return cells.map((c) => c.trim());
+};
+
+const parseGuestSpreadsheet = async (file) => {
+  const text = await file.text();
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+
+  if (!normalized) {
+    throw new Error("The uploaded file is empty.");
+  }
+
+  const delimiter = normalized.includes("\t") ? "\t" : ",";
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    throw new Error(
+      "Could not find any rows to import. Make sure the sheet includes a header row and at least one data row."
+    );
+  }
+
+  const headerCells = parseDelimitedLine(lines[0], delimiter);
+  const normalizedHeaders = headerCells.map((h) => normalizeHeaderKey(h));
+
+  const firstIdx = normalizedHeaders.findIndex(
+    (h) => h === "name 1" || h === "name1" || h === "first name"
+  );
+  const lastIdx = normalizedHeaders.findIndex(
+    (h) => h === "name 3" || h === "name3" || h === "last name"
+  );
+
+  if (firstIdx === -1 || lastIdx === -1) {
+    throw new Error(
+      "Could not locate columns named 'Name 1' and 'Name 3'. Please include those headers (case-insensitive)."
+    );
+  }
+
+  const guests = [];
+
+  for (let i = 1; i < lines.length; i += 1) {
+    const rowCells = parseDelimitedLine(lines[i], delimiter);
+    const firstName = rowCells[firstIdx] || "";
+    const lastName = rowCells[lastIdx] || "";
+
+    if (!firstName && !lastName) continue;
+
+    guests.push({
+      firstName: String(firstName).trim(),
+      lastName: String(lastName).trim(),
+      sourceRow: i + 1,
+    });
+  }
+
+  if (guests.length === 0) {
+    throw new Error(
+      "No guests were found. Ensure the file has data under 'Name 1' and 'Name 3'."
+    );
+  }
+
+  return guests;
+};
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -74,6 +169,13 @@ function App() {
   const [visitsLoading, setVisitsLoading] = useState(false);
   const [visitSummary, setVisitSummary] = useState(null);
   const [visitError, setVisitError] = useState("");
+
+  // ----- Guest import state -----
+  const importFileInputRef = useRef(null);
+  const [importingGuests, setImportingGuests] = useState(false);
+  const [importGuestsError, setImportGuestsError] = useState("");
+  const [importGuestsMessage, setImportGuestsMessage] = useState("");
+  const [importGuestsResults, setImportGuestsResults] = useState([]);
 
     // ----- Weather state -----
   const [weatherData, setWeatherData] = useState(null);
@@ -473,6 +575,80 @@ function App() {
     }
 
     await performLookupSearch({ query: lookupQuery, lastNameInitial: value });
+  };
+
+  // -----------------------------
+  // Guest import (Name 1 / Name 3)
+  // -----------------------------
+  const processGuestImportFile = async (file) => {
+    if (!file) return;
+
+    setImportGuestsError("");
+    setImportGuestsMessage("");
+    setImportGuestsResults([]);
+    setImportingGuests(true);
+
+    try {
+      const guestsFromFile = await parseGuestSpreadsheet(file);
+
+      const res = await fetch(`${API_BASE_URL}/api/import-guests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guests: guestsFromFile.map(({ firstName, lastName, sourceRow }) => ({
+            firstName,
+            lastName,
+            sourceRow,
+          })),
+          campus: "Main Clubhouse",
+          department: "Golf Round",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setImportGuestsError(data.error || "Unable to import guests.");
+        return;
+      }
+
+      const totals = data.totals || {};
+
+      setImportGuestsResults(data.results || []);
+      setImportGuestsMessage(
+        `Processed ${
+          totals.processed ?? guestsFromFile.length
+        } rows — ${totals.checkedIn || 0} checked in, ${
+          totals.alreadyCheckedIn || 0
+        } already in today, ${totals.blocked || 0} blocked.`
+      );
+
+      await loadTodayVisits();
+    } catch (err) {
+      console.error("Error importing guest file:", err);
+      setImportGuestsError(
+        err?.message ||
+          "Unable to read the uploaded file. Please use a CSV or tab-delimited export with 'Name 1' and 'Name 3' columns."
+      );
+    } finally {
+      setImportingGuests(false);
+    }
+  };
+
+  const handleGuestFileInputChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processGuestImportFile(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleGuestFileDrop = async (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      await processGuestImportFile(file);
+    }
   };
 
   const loadVisitSummary = async (guestId) => {
@@ -1654,6 +1830,130 @@ function App() {
         {/* LEFT: search + results */}
         <div>
           <h2>Guest Lookup</h2>
+          <section
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "10px",
+              border: "1px solid #ddd",
+              marginBottom: "1rem",
+              background: "#f8fafc",
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Daily roster import</h3>
+            <p style={{ fontSize: "0.9rem", color: "#444", marginTop: 0 }}>
+              Drag and drop your spreadsheet with <strong>Name 1</strong> (first
+              name) and <strong>Name 3</strong> (last name). Guests will be
+              created if needed and checked into <strong>Main Clubhouse</strong>
+              → <strong>Golf Round</strong> for today.
+            </p>
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleGuestFileDrop}
+              style={{
+                border: "2px dashed #0f766e",
+                padding: "0.75rem",
+                borderRadius: "10px",
+                textAlign: "center",
+                background: "white",
+              }}
+            >
+              <p style={{ margin: 0, color: "#0f172a" }}>
+                {importingGuests
+                  ? "Processing file..."
+                  : "Drop file here or"}{" "}
+                {!importingGuests && (
+                  <button
+                    type="button"
+                    onClick={() => importFileInputRef.current?.click()}
+                    style={{
+                      border: "1px solid #0f766e",
+                      background: "#0f766e",
+                      color: "white",
+                      borderRadius: "999px",
+                      padding: "0.3rem 0.9rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Browse
+                  </button>
+                )}
+              </p>
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx,.xls"
+                ref={importFileInputRef}
+                onChange={handleGuestFileInputChange}
+                style={{ display: "none" }}
+              />
+            </div>
+            {importGuestsError && (
+              <p style={{ color: "red", marginTop: "0.5rem" }}>
+                {importGuestsError}
+              </p>
+            )}
+            {importGuestsMessage && (
+              <p style={{ color: "#0f766e", marginTop: "0.5rem" }}>
+                {importGuestsMessage}
+              </p>
+            )}
+            {importGuestsResults.length > 0 && (
+              <div
+                style={{
+                  marginTop: "0.5rem",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  background: "white",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                  padding: "0.5rem",
+                }}
+              >
+                <ul
+                  style={{
+                    listStyle: "none",
+                    padding: 0,
+                    margin: 0,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  {importGuestsResults.map((row, idx) => (
+                    <li
+                      key={`${row.guestId || row.sourceRow || idx}-${row.status}`}
+                      style={{
+                        padding: "0.35rem 0.25rem",
+                        borderBottom:
+                          idx === importGuestsResults.length - 1
+                            ? "none"
+                            : "1px solid #f1f5f9",
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+                        <strong>
+                          {(row.firstName || "").trim()} {(row.lastName || "").trim()}
+                        </strong>
+                        {row.sourceRow && (
+                          <span
+                            style={{
+                              fontSize: "0.8rem",
+                              color: "#475569",
+                              background: "#e2e8f0",
+                              padding: "0.1rem 0.45rem",
+                              borderRadius: "999px",
+                            }}
+                          >
+                            Row {row.sourceRow}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ color: "#555" }}>
+                        — {row.message || row.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
           <section
             style={{
               padding: "0.75rem 1rem",

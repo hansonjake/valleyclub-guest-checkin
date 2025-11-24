@@ -204,6 +204,146 @@ app.get("/api/watchlist", (req, res) => {
 });
 
 // -----------------------------
+// /api/import-guests (bulk create + check-in)
+// -----------------------------
+app.post("/api/import-guests", (req, res) => {
+  const {
+    guests: guestRows,
+    campus = "Main Clubhouse",
+    department = "Golf Round",
+    visitDate,
+  } = req.body || {};
+
+  if (!Array.isArray(guestRows) || guestRows.length === 0) {
+    return res.status(400).json({
+      error:
+        "Guests array is required. Each entry should include firstName and lastName.",
+    });
+  }
+
+  const dateStr = visitDate || getTodayDateString();
+  const visitDay = new Date(`${dateStr}T12:00:00`);
+  if (isNaN(visitDay.getTime())) {
+    return res.status(400).json({ error: "Invalid visitDate." });
+  }
+  const visitYear = visitDay.getFullYear();
+
+  const totals = {
+    processed: guestRows.length,
+    checkedIn: 0,
+    alreadyCheckedIn: 0,
+    blocked: 0,
+    skipped: 0,
+  };
+
+  const results = guestRows.map((row, index) => {
+    const firstName = (row.firstName || "").trim();
+    const lastName = (row.lastName || "").trim();
+    const sourceRow = row.sourceRow || index + 1;
+
+    if (!firstName || !lastName) {
+      totals.skipped += 1;
+      return {
+        index,
+        sourceRow,
+        firstName,
+        lastName,
+        status: "skipped-missing-name",
+        message: "Missing first or last name.",
+      };
+    }
+
+    let guest = findOrCreateGuestByName({
+      firstName,
+      lastName,
+      phoneNumber: null,
+      email: null,
+    });
+
+    if (!guest || guest.isDeleted) {
+      totals.skipped += 1;
+      return {
+        index,
+        sourceRow,
+        firstName,
+        lastName,
+        status: "skipped-deleted",
+        message: "Guest is archived. Restore them before importing.",
+      };
+    }
+
+    const yearVisits = getVisitsForGuestInYear(guest.id, visitYear);
+    if (yearVisits.length >= 9) {
+      totals.blocked += 1;
+      return {
+        index,
+        sourceRow,
+        guestId: guest.id,
+        firstName,
+        lastName,
+        status: "blocked-year-limit",
+        message: "Guest has already used 9 visits this year.",
+      };
+    }
+
+    const existingVisit = getVisitForGuestOnDate(guest.id, dateStr);
+    if (existingVisit) {
+      const alreadyHasDept =
+        (existingVisit.firstDepartment === department &&
+          (existingVisit.campus || campus) === campus) ||
+        (existingVisit.departments || []).some(
+          (d) => d.department === department && (d.campus || existingVisit.campus) === campus
+        );
+
+      if (!alreadyHasDept) {
+        addDepartmentToVisit(existingVisit.id, department, campus);
+      }
+
+      totals.alreadyCheckedIn += 1;
+      return {
+        index,
+        sourceRow,
+        guestId: guest.id,
+        visitId: existingVisit.id,
+        firstName,
+        lastName,
+        status: "already-checked-in-today",
+        message: "Already checked in today. Department visit recorded.",
+      };
+    }
+
+    const { visit } = createVisit({
+      guestId: guest.id,
+      department,
+      campus,
+      visitDate: dateStr,
+    });
+
+    totals.checkedIn += 1;
+    guest = findGuestById(guest.id);
+
+    return {
+      index,
+      sourceRow,
+      guestId: guest.id,
+      visitId: visit.id,
+      firstName,
+      lastName,
+      status: "checked-in",
+      message: "Checked in for the day.",
+    };
+  });
+
+  res.json({
+    date: dateStr,
+    campus,
+    department,
+    totals,
+    results,
+  });
+});
+
+// -----------------------------
 // /api/checkin (name + visitDate)
 // -----------------------------
 app.post("/api/checkin", (req, res) => {
